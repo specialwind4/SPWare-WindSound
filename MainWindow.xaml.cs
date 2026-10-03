@@ -111,8 +111,8 @@ namespace SPWare.VirtualSoundCanvas
             KindCombo.ItemsSource = new[]
             {
                 Loc.T("직접 설정"),
-                Loc.T("SPE3 (게임의 SPE3 음악)"),
-                Loc.T("GM · GS (SPE5 에뮬레이션)"),
+                Loc.T("SPE3 (MT-32 계열 게임 음악)"),
+                Loc.T("GM · GS (SC-55 계열)"),
             };
             KindCombo.SelectedIndex = 0;
             KindCombo.SelectionChanged += OnKindComboChanged;
