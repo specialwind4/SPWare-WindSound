@@ -34,7 +34,7 @@ The prebuilt native libraries (`Native/x64/mt32_wrap.dll`, `nuked_sc55_wrap.dll`
 * `Native/x64/nuked_sc55_wrap.dll` – modified Nuked-SC55 (**original MAME license: no selling, no commercial use; modified versions must ship their complete source**). Source: `native-src/Nuked-SC55-wrap-source.zip`.
 * NAudio (MIT).
 
-Because of the Nuked-SC55 license this program is **free and non-commercial only**. The license texts are in `Licenses/` of the release package and inside the source zips.
+This project's own code is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)** (free for noncommercial use; no selling, no commercial use). This also matches the Nuked-SC55 condition below. Third-party components keep their own licenses (texts in `Licenses/` and inside the source zips).
 
 Roland and its product names are trademarks of Roland Corporation. This project is not affiliated with, sponsored by or endorsed by Roland.
 
@@ -57,7 +57,7 @@ The UI is available in English and Korean (Settings → Language). *Auto* follow
 
 * **내려받기**: Releases 페이지의 `SPWare.WindSound_public.zip` (.NET 설치 불필요)
 * **빌드**: .NET 8 SDK 설치 후 `dotnet publish SPWare.VirtualSoundCanvas.csproj -c Release -r win-x64`
-* **라이선스**: Nuked-SC55(MAME 라이선스) 때문에 **무료·비상업적 사용만** 가능합니다. Munt는 LGPL-2.1 이상입니다. 네이티브 DLL의 소스는 `native-src/`에 있습니다.
+* **라이선스**: 이 프로젝트의 코드는 **PolyForm Noncommercial 1.0.0**([LICENSE](LICENSE))입니다 - 비상업적 사용만 가능하고 판매/상업적 사용은 안 됩니다(Nuked-SC55의 MAME 라이선스 조건과도 같은 방향). Munt는 LGPL-2.1 이상이며, 외부 구성요소는 각자의 라이선스를 따릅니다. 네이티브 DLL의 소스는 `native-src/`에 있습니다.
 * Roland 및 제품명은 Roland Corporation의 상표이며, 이 프로젝트는 Roland와 제휴/후원/승인 관계가 없습니다.
 * 화면 언어는 설정 → Language / 언어 에서 바꿀 수 있습니다(Auto = 윈도 언어).
 
