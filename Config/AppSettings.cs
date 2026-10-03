@@ -24,7 +24,7 @@ namespace SPWare.VirtualSoundCanvas.Config
         public string Sc55RomFolder { get; set; } = "";
 
         // ---- 선택 상태 ----
-        /// <summary>0=구형 MTS3, 1=신형 MTS3, 2=MTS3L</summary>
+        /// <summary>0=구형 SPE3, 1=신형 SPE3, 2=SPE3L</summary>
         public int Mt32RomSetIndex { get; set; } = 0;
 
         /// <summary>MIDI 장치는 인덱스가 아니라 이름으로 저장합니다 - USB 장치를 꽂고 빼면
@@ -32,16 +32,16 @@ namespace SPWare.VirtualSoundCanvas.Config
         public string MidiInDeviceName { get; set; } = "";
         public string MidiOutDeviceName { get; set; } = "";
 
-        /// <summary>표시 중이던 장치 탭(화면 전환 전용). 0=MTS3, 1=MTS5</summary>
+        /// <summary>표시 중이던 장치 탭(화면 전환 전용). 0=SPE3, 1=SPE5</summary>
         public int ActiveEngineIndex { get; set; } = 0;
 
         /// <summary>
-        /// 배정하지 않은 채널을 처리할 기본 엔진. 0=MTS3, 1=MTS5.
+        /// 배정하지 않은 채널을 처리할 기본 엔진. 0=SPE3, 1=SPE5.
         /// 화면 탭과는 별개입니다 - 탭을 바꿨다고 소리 경로가 바뀌면 안 되기 때문입니다.
         /// </summary>
         public int DefaultEngineIndex { get; set; } = 1;
 
-        /// <summary>채널(0-15) → 엔진 인덱스(0=MTS3, 1=MTS5).</summary>
+        /// <summary>채널(0-15) → 엔진 인덱스(0=SPE3, 1=SPE5).</summary>
         public Dictionary<string, int> ChannelAssignments { get; set; } = new();
 
         // ---- 오디오 ----
@@ -49,7 +49,7 @@ namespace SPWare.VirtualSoundCanvas.Config
         public double MasterVolume { get; set; } = 0.8;
         public double Mt32Volume { get; set; } = 1.0;
 
-        /// <summary>MTS3 마스터 볼륨(패널 노브, 1~100). 다음 실행 때 SysEx로 되살린다.</summary>
+        /// <summary>SPE3 마스터 볼륨(패널 노브, 1~100). 다음 실행 때 SysEx로 되살린다.</summary>
         public int Mt32MasterVolume { get; set; } = 100;
         public double Sc55Volume { get; set; } = 1.0;
 
@@ -66,13 +66,13 @@ namespace SPWare.VirtualSoundCanvas.Config
         /// <summary>사용자가 직접 조절한 창 높이. 0이면 내용에 맞춰 자동(설정을 접으면 줄어드는 기본 동작).</summary>
         public double WindowHeight { get; set; } = 0;
 
-        /// <summary>MTS5 LCD 대비(1~16). 0이면 저장된 값 없음(펌웨어 기본값 사용). 종료할 때 저장하고 시작할 때 되돌린다.</summary>
+        /// <summary>SPE5 LCD 대비(1~16). 0이면 저장된 값 없음(펌웨어 기본값 사용). 종료할 때 저장하고 시작할 때 되돌린다.</summary>
         public int Sc55LcdContrast { get; set; } = 0;
 
-        /// <summary>MIDI 종류. 0=직접 설정, 1=MTS3, 2=GM/GS(MTS5). 0이 아니면 시작할 때 그 종류를 적용한다.</summary>
+        /// <summary>MIDI 종류. 0=직접 설정, 1=SPE3, 2=GM/GS(SPE5). 0이 아니면 시작할 때 그 종류를 적용한다.</summary>
         public int MidiKindIndex { get; set; } = 0;
 
-        /// <summary>들어오는 MIDI(GM On, GS Reset, MTS3 SysEx)로 종류를 자동 감지해서 배정을 바꿀지.</summary>
+        /// <summary>들어오는 MIDI(GM On, GS Reset, SPE3 SysEx)로 종류를 자동 감지해서 배정을 바꿀지.</summary>
         public bool AutoDetectKind { get; set; } = true;
 
         /// <summary>접어 둔 설정 섹션의 키(rom, map, channel, midi, sc55rom, audio, log). 다음 실행 때도 접힌 채로 둡니다.</summary>
@@ -87,7 +87,7 @@ namespace SPWare.VirtualSoundCanvas.Config
         // ------------------------------------------------------------------
 
         // 이 폴더 이름을 원본(SPWare.VirtualSoundCanvas)과 다르게 둔다 - 같은 이름을 쓰면 같은
-        // %AppData% 설정 파일을 공유하게 되어, 이 MTS3/MTS5 전용판이 저장할 때마다 원본판의
+        // %AppData% 설정 파일을 공유하게 되어, 이 SPE3/SPE5 전용판이 저장할 때마다 원본판의
         // SC-88Pro 관련 설정(Sc88RomFolder 등, 이 클래스엔 없는 필드)이 JSON 직렬화 과정에서
         // 통째로 사라져 버린다(두 프로그램을 같은 PC에서 같이 쓸 수 있어야 하므로 분리 필수).
         [JsonIgnore]
@@ -206,7 +206,7 @@ namespace SPWare.VirtualSoundCanvas.Config
             return s;
         }
 
-        /// <summary>선택된 MTS3 롬 세트의 폴더 경로.</summary>
+        /// <summary>선택된 SPE3 롬 세트의 폴더 경로.</summary>
         public string GetMt32Folder() => Mt32RomSetIndex switch
         {
             1 => Mt32NewRomFolder,

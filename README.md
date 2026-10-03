@@ -6,8 +6,8 @@ A small Windows (WPF, .NET 8) app that plays MIDI from games and sequencers thro
 
 | Name in the app | What it is | Based on |
 |---|---|---|
-| **MTS3** | MT-32 compatible sound emulator | [Munt](https://github.com/munt/munt) (mt32emu) |
-| **MTS5** | SC-55mkII compatible sound emulator | [Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) |
+| **SPE3** | MT-32 compatible sound emulator | [Munt](https://github.com/munt/munt) (mt32emu) |
+| **SPE5** | SC-55mkII compatible sound emulator | [Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) |
 
 Incoming MIDI arrives through a virtual MIDI port (e.g. [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)), is routed per channel to one of the engines, and is played through WASAPI. The window shows the front panel of each engine (LCD, buttons, volume knob).
 
@@ -48,8 +48,8 @@ The UI is available in English and Korean (Settings → Language). *Auto* follow
 
 게임/시퀀서의 MIDI를 두 가지 소프트웨어 음원 에뮬레이터로 재생하는 Windows(WPF, .NET 8) 프로그램입니다.
 
-* **MTS3** – MT-32 호환 음원 에뮬레이터 ([Munt](https://github.com/munt/munt) 기반)
-* **MTS5** – SC-55mkII 호환 음원 에뮬레이터 ([Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) 기반)
+* **SPE3** – MT-32 호환 음원 에뮬레이터 ([Munt](https://github.com/munt/munt) 기반)
+* **SPE5** – SC-55mkII 호환 음원 에뮬레이터 ([Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) 기반)
 
 가상 MIDI 포트(loopMIDI 등)로 들어온 MIDI를 채널별로 엔진에 나눠 보내고 WASAPI로 재생합니다. 각 엔진의 앞판(LCD, 버튼, 볼륨 노브)이 화면에 나옵니다.
 

@@ -56,7 +56,7 @@ namespace SPWare.VirtualSoundCanvas
             _router.RegisterEngine(_sc55);
 
             // 믹서에도 등록해야 실제로 소리가 납니다 (라우터 등록과는 별개).
-            // 엔진별 기본 크기 보정(§2.64): 같은 피아노 코드를 엔진에 넣어 잰 값(MTS3 -28.9 / MTS5 -35.3 dBFS)을
+            // 엔진별 기본 크기 보정(§2.64): 같은 피아노 코드를 엔진에 넣어 잰 값(SPE3 -28.9 / SPE5 -35.3 dBFS)을
             // 공통 목표 -33.0 dBFS에 맞춘다(메인 버전과 같은 값이라 두 버전의 소리 크기가 같다).
             _mixer.AddEngine(_mt32, 0.624f);  // -4.1 dB
             _mixer.AddEngine(_sc55, 1.303f);  // +2.3 dB
@@ -64,7 +64,7 @@ namespace SPWare.VirtualSoundCanvas
             // --- 화면 배선 ---
             _mt32.LcdTextChanged += (_, text) => Mt32Panel.OnEngineLcdTextChanged(this, text);
             Mt32Panel.Attach(_router, _mt32);
-            // MTS3 패널의 SELECT/VOLUME 노브 = MTS3 마스터 볼륨(SysEx). 액정의 Vol 값도 같이 바뀐다.
+            // SPE3 패널의 SELECT/VOLUME 노브 = SPE3 마스터 볼륨(SysEx). 액정의 Vol 값도 같이 바뀐다.
             Mt32Panel.MasterVolumeChanged += v => _mt32.SetMasterVolume(v);
             // PART로 고른 파트의 음량(VOLUME 버튼 + 노브), 그리고 그때 액정에 띄우는 안내 문구
             Mt32Panel.PartVolumeChanged += (part, v) => _mt32.SetPartVolume(part, v);
@@ -74,10 +74,10 @@ namespace SPWare.VirtualSoundCanvas
             {
                 _mt32.Reset();
                 _mt32.SetMasterVolume(Mt32Panel.MasterVolume);
-                Log("MTS3 리셋");
+                Log("SPE3 리셋");
             };
             Sc55Panel.Attach(_router, _sc55);
-            // 패널의 VOLUME 노브를 돌리면 MTS5 음량 슬라이더가 따라가고, 슬라이더를 움직이면 노브도 돌아간다
+            // 패널의 VOLUME 노브를 돌리면 SPE5 음량 슬라이더가 따라가고, 슬라이더를 움직이면 노브도 돌아간다
             Sc55Panel.VolumeKnobChanged += v =>
             {
                 if (Math.Abs(Sc55VolumeSlider.Value - v * 100) > 0.01) Sc55VolumeSlider.Value = v * 100;
@@ -111,8 +111,8 @@ namespace SPWare.VirtualSoundCanvas
             KindCombo.ItemsSource = new[]
             {
                 Loc.T("직접 설정"),
-                Loc.T("MTS3 (게임의 MTS3 음악)"),
-                Loc.T("GM · GS (MTS5 에뮬레이션)"),
+                Loc.T("SPE3 (게임의 SPE3 음악)"),
+                Loc.T("GM · GS (SPE5 에뮬레이션)"),
             };
             KindCombo.SelectedIndex = 0;
             KindCombo.SelectionChanged += OnKindComboChanged;
@@ -341,8 +341,8 @@ namespace SPWare.VirtualSoundCanvas
 
         private void BuildEngineTabs()
         {
-            AddEngineTab("MTS3", _mt32, isDefault: true);
-            AddEngineTab("MTS5", _sc55, isDefault: false);
+            AddEngineTab("SPE3", _mt32, isDefault: true);
+            AddEngineTab("SPE5", _sc55, isDefault: false);
         }
 
         private void AddEngineTab(string label, ISynthEngine engine, bool isDefault)
@@ -559,7 +559,7 @@ namespace SPWare.VirtualSoundCanvas
                 string folder = Mt32RomPathBox.Text;
                 if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
                 {
-                    Log("MTS3 건너뜀: MT-32 ROM 폴더가 지정되지 않았습니다 (MTS3 탭에서 폴더를 고르세요)");
+                    Log("SPE3 건너뜀: MT-32 ROM 폴더가 지정되지 않았습니다 (SPE3 탭에서 폴더를 고르세요)");
                     return;
                 }
 
@@ -579,7 +579,7 @@ namespace SPWare.VirtualSoundCanvas
                 {
                     string missing = control is null && pcm is null ? "CONTROL과 PCM 둘 다"
                                    : control is null ? "CONTROL" : "PCM";
-                    Log($"MTS3 건너뜀: MT-32 {missing} ROM을 찾지 못했습니다. 지정한 폴더: {folder}");
+                    Log($"SPE3 건너뜀: MT-32 {missing} ROM을 찾지 못했습니다. 지정한 폴더: {folder}");
                     LogFolderContents(folder);
                     return;
                 }
@@ -591,18 +591,18 @@ namespace SPWare.VirtualSoundCanvas
                 _mt32.Open();
                 _mt32.SetMasterVolume(_settings.Mt32MasterVolume);   // 지난번 노브 위치 복원(액정 Vol도 따라 바뀐다)
                 Mt32Panel.SetMasterVolume(_settings.Mt32MasterVolume);
-                Log($"MTS3 엔진 초기화 완료 ({_mt32.RomSet}) - {Mt32Engine.GetLastNativeMessage()}");
+                Log($"SPE3 엔진 초기화 완료 ({_mt32.RomSet}) - {Mt32Engine.GetLastNativeMessage()}");
                 Log("  └ 참고: 실기는 기본 상태에서 MIDI 채널 1번(0-based 0)에 파트가 " +
                     "배정되어 있지 않습니다. 채널 2번 이상으로 테스트해보세요.");
             }
             catch (DllNotFoundException)
             {
-                Log("MTS3 초기화 실패: mt32_wrap.dll을 찾을 수 없습니다. " +
+                Log("SPE3 초기화 실패: mt32_wrap.dll을 찾을 수 없습니다. " +
                     @"직접 빌드한 DLL을 exe와 같은 폴더(또는 Native\x64\)에 넣어주세요.");
             }
             catch (Exception ex)
             {
-                Log($"MTS3 초기화 실패: {ex.Message}");
+                Log($"SPE3 초기화 실패: {ex.Message}");
             }
         }
 
@@ -697,32 +697,32 @@ namespace SPWare.VirtualSoundCanvas
                 string folder = Sc55RomPathBox.Text;
                 if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
                 {
-                    Log("MTS5 건너뜀: SC-55mkII ROM 폴더가 지정되지 않았습니다 (MTS5 탭에서 폴더를 고르세요)");
+                    Log("SPE5 건너뜀: SC-55mkII ROM 폴더가 지정되지 않았습니다 (SPE5 탭에서 폴더를 고르세요)");
                     return;
                 }
 
                 // 시작 전에 파일 5개의 크기를 찍어둡니다. 크기가 0이거나 표준과
                 // 다르면 그 자체로 원인이 드러납니다(덤프 손상, 다른 기종 등).
                 LogSc55RomSizes(folder);
-                Log("  └ MTS5 펌웨어 부팅 중... (몇 초 걸립니다)");
+                Log("  └ SPE5 펌웨어 부팅 중... (몇 초 걸립니다)");
 
                 _sc55.RomDirectory = folder;
                 _sc55.Open();
-                Log($"MTS5 엔진 초기화 완료 - {Sc55Engine.GetLastNativeMessage()}");
+                Log($"SPE5 엔진 초기화 완료 - {Sc55Engine.GetLastNativeMessage()}");
                 if (_settings.Sc55LcdContrast is >= 1 and <= 16)
                 {
                     _sc55.SetLcdContrast(_settings.Sc55LcdContrast); // 지난번에 맞춰 둔 LCD 대비 복원
-                    Log($"  └ MTS5 LCD 대비 {_settings.Sc55LcdContrast} 복원");
+                    Log($"  └ SPE5 LCD 대비 {_settings.Sc55LcdContrast} 복원");
                 }
             }
             catch (DllNotFoundException)
             {
-                Log("MTS5 초기화 실패: nuked_sc55_wrap.dll을 찾을 수 없습니다. " +
+                Log("SPE5 초기화 실패: nuked_sc55_wrap.dll을 찾을 수 없습니다. " +
                     "빌드한 DLL을 exe와 같은 폴더(또는 Native\\x64\\)에 넣어주세요.");
             }
             catch (Exception ex)
             {
-                Log($"MTS5 초기화 실패: {ex.Message}");
+                Log($"SPE5 초기화 실패: {ex.Message}");
                 LogFolderContents(Sc55RomPathBox.Text);
             }
         }

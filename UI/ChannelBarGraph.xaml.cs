@@ -8,7 +8,7 @@ using System.Windows.Threading;
 namespace SPWare.VirtualSoundCanvas.UI
 {
     /// <summary>
-    /// MTS5/SC-88 실기 전면 LCD의 16채널 바 인디케이터를 재현한 공용 컨트롤.
+    /// SPE5/SC-88 실기 전면 LCD의 16채널 바 인디케이터를 재현한 공용 컨트롤.
     ///
     /// 실기 동작을 따른 점:
     ///  - 아래에서 위로 차오르는 도트 매트릭스 막대

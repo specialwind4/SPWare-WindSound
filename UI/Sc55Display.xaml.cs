@@ -11,7 +11,7 @@ using SPWare.VirtualSoundCanvas.Midi;
 namespace SPWare.VirtualSoundCanvas.UI
 {
     /// <summary>
-    /// SPWare MTS5 실기 디스플레이.
+    /// SPWare SPE5 실기 디스플레이.
     ///
     /// 실기 동작을 따른 점:
     ///  - 윗줄에 파트 번호 + 악기 번호 + 악기 이름을 표시합니다(매뉴얼의 전원 투입 화면: 01 001 Piano 1)
@@ -166,7 +166,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         }
 
         // ---- VOLUME 노브 ----
-        // 실기의 볼륨 노브 = 이 앱에서는 MTS5의 음량(슬라이더와 같은 값), 범위는 1~100.
+        // 실기의 볼륨 노브 = 이 앱에서는 SPE5의 음량(슬라이더와 같은 값), 범위는 1~100.
         // 마우스로 노브를 잡고 손으로 돌리듯 원을 그리며 돌린다: 포인터가 노브 중심을 기준으로 움직인 각도만큼 노브가 돈다.
         // 노브는 -135도(1) ~ +135도(100)를 돌고, 아래쪽 90도는 못 돈다(실기 노브의 멈춤 위치). 마우스 휠은 한 칸에 2씩.
         private const int VolumeMin = 1, VolumeMax = 100;
@@ -361,7 +361,7 @@ namespace SPWare.VirtualSoundCanvas.UI
             ReverbText.Text = s.Reverb.ToString();
             ChorusText.Text = s.Chorus.ToString();
             KeyShiftText.Text = "0"; // Key Shift는 실기 패널 조작값이라 MIDI로 관측되지 않음
-            MidiChText.Text = $"{_shownChannel + 1:00}"; // MTS5는 A/B 그룹이 없어 01~16
+            MidiChText.Text = $"{_shownChannel + 1:00}"; // SPE5는 A/B 그룹이 없어 01~16
         }
     }
 }

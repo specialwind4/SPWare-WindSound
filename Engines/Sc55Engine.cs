@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace SPWare.VirtualSoundCanvas.Engines
 {
     /// <summary>
-    /// MTS5 엔진. linoshkmalayil/Nuked-SC55-GUI-Float(jcmoyer/Nuked-SC55의
+    /// SPE5 엔진. linoshkmalayil/Nuked-SC55-GUI-Float(jcmoyer/Nuked-SC55의
     /// 포크, https://github.com/linoshkmalayil/Nuked-SC55-GUI-Float) 소스를 직접 열어서
     /// 확인한 실제 공개 API(Emulator 클래스, emu.h)를 그대로 감싼 얇은 C 래퍼를 씁니다.
     ///
@@ -20,14 +20,14 @@ namespace SPWare.VirtualSoundCanvas.Engines
     ///     (linoshkmalayil/Nuked-SC55-GUI-Float 소스에 이미 추가되어 있는
     ///     sc55_wrap 타깃을 CMake로 빌드하면 나옵니다: src/csharp_wrap/README.md 참고.
     ///     SDL2/rtmidi 필요 없이 이 타깃 하나만 따로 빌드 가능합니다.)
-    ///  2. MTS5 ROM 세트(실기 덤프) → RomDirectory에 폴더 지정
+    ///  2. SPE5 ROM 세트(실기 덤프) → RomDirectory에 폴더 지정
     ///     (이 프로젝트의 Roms\SC55mk2\ 에 이미 rom1.bin/rom2.bin/rom_sm.bin/
     ///     waverom1.bin/waverom2.bin 표준 파일명으로 정리되어 있습니다)
     /// </summary>
     public sealed class Sc55Engine : ISynthEngine
     {
         /// <summary>
-        /// nukeykt/Nuked-SC55 공식 README가 명시하는, MTS5/SC-155mkII(v1.01) 세트의
+        /// nukeykt/Nuked-SC55 공식 README가 명시하는, SPE5/SC-155mkII(v1.01) 세트의
         /// 정확한 파일명 5개입니다. 칩 번호까지 못박혀 있어서(R15199858→rom1.bin 등)
         /// 확실합니다. RomDirectory 폴더 안에 이 이름 그대로 있어야 합니다.
         /// </summary>
@@ -55,7 +55,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
         /// <summary>
         /// 실기 펌웨어 부팅에 돌릴 에뮬레이션 스텝 수. 0이면 네이티브 기본값(1200만)을 씁니다.
         ///
-        /// 왜 이런 게 필요한가: MTS5는 전원을 켜고 펌웨어가 다 올라와야 MIDI에 반응합니다.
+        /// 왜 이런 게 필요한가: SPE5는 전원을 켜고 펌웨어가 다 올라와야 MIDI에 반응합니다.
         /// 이 과정을 건너뛰면 ROM을 제대로 읽어도 "아무 소리도 안 나는" 상태가 됩니다.
         /// 실측으로 400만 스텝은 무음, 800만부터 정상 출력이었고, 기본값은 안전 마진을
         /// 둔 1200만입니다(PC에서 약 3초). 원본 렌더러는 2400만을 씁니다.
@@ -87,7 +87,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
         // (use-after-free → 앱이 즉시 죽음). 그래서 이쪽에서도 직렬화합니다.
         private readonly object _sync = new();
 
-        public string Name => "MTS5 (Nuked-SC55)";
+        public string Name => "SPE5 (Nuked-SC55)";
         public bool HandlesDeviceInquiry => true; // 실기 펌웨어를 그대로 돌리므로 표준 GS Device Inquiry에 응답
         public event EventHandler<string>? LcdTextChanged;
 
@@ -99,7 +99,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
                 name => !System.IO.File.Exists(System.IO.Path.Combine(RomDirectory, name)));
             if (missing.Length > 0)
                 throw new InvalidOperationException(
-                    $"MTS5 ROM 파일이 없습니다: {string.Join(", ", missing)} (경로: {RomDirectory})");
+                    $"SPE5 ROM 파일이 없습니다: {string.Join(", ", missing)} (경로: {RomDirectory})");
 
             if (BootSteps > 0) sc55_set_boot_steps(BootSteps);
 
@@ -109,9 +109,9 @@ namespace SPWare.VirtualSoundCanvas.Engines
             {
                 string detail = GetLastNativeMessage();
                 throw new InvalidOperationException(
-                    $"MTS5 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} (경로: {RomDirectory})");
+                    $"SPE5 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} (경로: {RomDirectory})");
             }
-            LcdTextChanged?.Invoke(this, "MTS5  Ready.");
+            LcdTextChanged?.Invoke(this, "SPE5  Ready.");
         }
 
         private void Feed(params byte[] bytes)
@@ -135,7 +135,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
         public void SysEx(ReadOnlySpan<byte> data) => Feed(data.ToArray());
 
         // ---- 유휴 절전 ----
-        // MTS5 에뮬레이터는 사이클 단위로 실기 CPU를 흉내내서, 아무 소리도 안 내는 중에도
+        // SPE5 에뮬레이터는 사이클 단위로 실기 CPU를 흉내내서, 아무 소리도 안 내는 중에도
         // 콜백 예산(10ms)의 약 40%를 먹습니다. 그래서 "출력이 계속 무음이고 MIDI 입력도 없으면"
         // 에뮬레이션 자체를 멈추고(시간이 정지할 뿐이라 상태는 그대로), MIDI가 들어오는 즉시 재개합니다.
         // 무음 판정은 음량 기준이라 리버브/릴리즈 꼬리가 끝난 뒤에만 멈춥니다.
@@ -194,7 +194,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
         private bool _lcdSupported = true;
 
         /// <summary>
-        /// 에뮬레이터가 그린 실제 LCD 화면(MTS5는 741x268)을 BGRA 픽셀로 받아옵니다.
+        /// 에뮬레이터가 그린 실제 LCD 화면(SPE5는 741x268)을 BGRA 픽셀로 받아옵니다.
         /// 부팅 배너, 펌웨어가 만드는 파트/악기 표시, 레벨 미터까지 실기 그대로입니다.
         /// 엔진이 준비 안 됐거나 DLL이 이 기능을 모르면(옛 DLL) false를 돌려주니, 호출한 쪽은 기존 화면으로 대체하면 됩니다.
         /// </summary>

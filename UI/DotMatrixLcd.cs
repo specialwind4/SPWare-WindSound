@@ -5,7 +5,7 @@ using System.Windows.Media;
 namespace SPWare.VirtualSoundCanvas.UI
 {
     /// <summary>
-    /// 실기 MTS3 LCD처럼 20자 x 1줄을 5x8 도트 셀로 직접 그리는 컨트롤.
+    /// 실기 SPE3 LCD처럼 20자 x 1줄을 5x8 도트 셀로 직접 그리는 컨트롤.
     ///
     /// 글꼴(Consolas 등)로 그리면 글자가 매끈해서 실기 느낌이 안 나고, 특히 소리가 나는 파트를
     /// 보여주는 막대 문자(코드 1)를 실기처럼 표현할 수 없다. 여기서는 문자마다 5열 x 8행 도트를
@@ -31,7 +31,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         private const int Pitch = CellW + 1; // 글자 사이 빈 열 1개 포함
         private const byte ActivePartCode = 1;
 
-        /// <summary>글자 수(가로 칸 수). MTS3 LCD는 20.</summary>
+        /// <summary>글자 수(가로 칸 수). SPE3 LCD는 20.</summary>
         public static readonly DependencyProperty ColumnsProperty = DependencyProperty.Register(
             nameof(Columns), typeof(int), typeof(DotMatrixLcd),
             new FrameworkPropertyMetadata(20, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
@@ -42,7 +42,7 @@ namespace SPWare.VirtualSoundCanvas.UI
             set => SetValue(ColumnsProperty, value);
         }
 
-        /// <summary>도트의 세로 간격 / 가로 간격. 1이면 정사각 배열(MTS3), MTS5 LCD는 글자가 더 길쭉해서 1.35 정도.</summary>
+        /// <summary>도트의 세로 간격 / 가로 간격. 1이면 정사각 배열(SPE3), SPE5 LCD는 글자가 더 길쭉해서 1.35 정도.</summary>
         public static readonly DependencyProperty DotAspectProperty = DependencyProperty.Register(
             nameof(DotAspect), typeof(double), typeof(DotMatrixLcd),
             new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
@@ -71,7 +71,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         public Brush? OffBrush { get => (Brush?)GetValue(OffBrushProperty); set => SetValue(OffBrushProperty, value); }
 
         /// <summary>
-        /// true면 글자 아래에 얇은 줄 하나를 더 그린다. 실기 MTS3 LCD는 5x7 글자 바로 아래에 커서 줄(8번째 행)이 있어서
+        /// true면 글자 아래에 얇은 줄 하나를 더 그린다. 실기 SPE3 LCD는 5x7 글자 바로 아래에 커서 줄(8번째 행)이 있어서
         /// 글자 밑에 얇은 선이 항상 보인다.
         /// </summary>
         public static readonly DependencyProperty CursorLineProperty = DependencyProperty.Register(
@@ -91,7 +91,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         /// <summary>커서 줄(대시) 색. 실기에서는 꺼진 도트와 같은 색이라 기본값을 꺼진 도트 기본색(DefaultOff)과 똑같이 둔다.</summary>
         public Brush? CursorBrush { get => (Brush?)GetValue(CursorBrushProperty); set => SetValue(CursorBrushProperty, value); }
 
-        /// <summary>도트 한 개의 크기 / 도트 간격(피치). 실기 MTS3 LCD는 약 0.55~0.6이라 도트 사이 틈이 넓다. 기본 0.78.</summary>
+        /// <summary>도트 한 개의 크기 / 도트 간격(피치). 실기 SPE3 LCD는 약 0.55~0.6이라 도트 사이 틈이 넓다. 기본 0.78.</summary>
         public static readonly DependencyProperty DotFillProperty = DependencyProperty.Register(
             nameof(DotFill), typeof(double), typeof(DotMatrixLcd),
             new FrameworkPropertyMetadata(0.78, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -102,7 +102,7 @@ namespace SPWare.VirtualSoundCanvas.UI
             set => SetValue(DotFillProperty, value);
         }
 
-        /// <summary>도트 모서리 둥글기(도트 크기 대비). 실기 LCD의 도트는 각진 사각형에 가까워서 MTS3는 작게 쓴다.</summary>
+        /// <summary>도트 모서리 둥글기(도트 크기 대비). 실기 LCD의 도트는 각진 사각형에 가까워서 SPE3는 작게 쓴다.</summary>
         public static readonly DependencyProperty CornerRatioProperty = DependencyProperty.Register(
             nameof(CornerRatio), typeof(double), typeof(DotMatrixLcd),
             new FrameworkPropertyMetadata(0.22, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -267,7 +267,7 @@ namespace SPWare.VirtualSoundCanvas.UI
                                 dc.DrawRoundedRectangle(halo, null, Rect.Inflate(rect, dotX * 0.55, dotX * 0.55), radius * 2, radius * 2);
                             dc.DrawRoundedRectangle(on, null, rect, radius, radius);
                         }
-                        // 실기 LCD(MTS3): 8번째 행(g j p q y 의 꼬리 자리)은 켜졌을 때만 보이고, 꺼진 도트는 그리지 않는다.
+                        // 실기 LCD(SPE3): 8번째 행(g j p q y 의 꼬리 자리)은 켜졌을 때만 보이고, 꺼진 도트는 그리지 않는다.
                         // 실기 사진에서 꺼진 도트 격자는 7행까지만 보인다.
                         else if (off != null && !(cursorLine && y == Rows - 1))
                         {

@@ -3,7 +3,7 @@ using System;
 namespace SPWare.VirtualSoundCanvas.Engines
 {
     /// <summary>
-    /// 모든 신스 엔진(MTS3/Munt, SC-88Pro 등)이 구현해야 하는 공통 계약.
+    /// 모든 신스 엔진(SPE3/Munt, SC-88Pro 등)이 구현해야 하는 공통 계약.
     /// 라우터와 UI는 이 인터페이스만 알고 있으면 되고, 실제 엔진 구현체는
     /// 언제든 교체 가능합니다. (지금은 SC-88Pro 자리에 ExternalForwardingEngine이
     /// 들어가 있고, 나중에 진짜 SC-88Pro 엔진이 준비되면 이 인터페이스를

@@ -6,7 +6,7 @@ using SPWare.VirtualSoundCanvas.Engines;
 namespace SPWare.VirtualSoundCanvas.Audio
 {
     /// <summary>
-    /// 등록된 모든 엔진(MTS3, MTS5 등)의 RenderFloat를 매 오디오 콜백마다 불러서
+    /// 등록된 모든 엔진(SPE3, SPE5 등)의 RenderFloat를 매 오디오 콜백마다 불러서
     /// 하나의 스테레오 스트림으로 합쳐주는 믹서. 이걸 실제 스피커로 내보내는 부분이
     /// 지금까지 빠져 있었던 조각입니다 — 엔진이 MIDI를 받아 내부적으로 소리를 "계산"은
     /// 하고 있었지만, 그 결과를 밖으로 꺼내 재생하는 루프가 없으면 아무 소리도 안 납니다.
@@ -64,7 +64,7 @@ namespace SPWare.VirtualSoundCanvas.Audio
         /// <summary>
         /// 엔진을 등록한다. <paramref name="baseGain"/>은 엔진마다 소리 크기를 맞추는 고정 보정값(선형 배율, 1.0 = 그대로)이고,
         /// 사용자가 만지는 음량 슬라이더(<see cref="SetEngineVolume"/>, 0~1)와는 별개로 곱해진다.
-        /// 엔진마다 기본 출력 크기가 많이 달라서(같은 피아노 코드 기준 MTS3가 MTS5보다 약 6.4 dB 큼) 슬라이더를
+        /// 엔진마다 기본 출력 크기가 많이 달라서(같은 피아노 코드 기준 SPE3가 SPE5보다 약 6.4 dB 큼) 슬라이더를
         /// 같은 값에 두면 엔진을 바꿀 때 크기가 널뛰던 것을 막기 위한 것. 값은 STATUS.md §2.64 참고.
         /// </summary>
         public void AddEngine(ISynthEngine engine, float baseGain = 1.0f)

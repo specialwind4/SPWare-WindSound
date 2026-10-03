@@ -10,22 +10,22 @@ using SPWare.VirtualSoundCanvas.Midi;
 namespace SPWare.VirtualSoundCanvas.UI
 {
     /// <summary>
-    /// SPWare MTS3 실기 디스플레이. 실기는 20자 × 1줄 LCD 하나뿐입니다.
+    /// SPWare SPE3 실기 디스플레이. 실기는 20자 × 1줄 LCD 하나뿐입니다.
     ///
     /// mt32emu 본체(mt32_wrap.dll)의 getDisplayState()가 실제 LCD 텍스트를 그대로
-    /// 돌려줍니다 - mt32-pi(라즈베리파이용 실물 MTS3 에뮬레이터)가 물리 LCD에
+    /// 돌려줍니다 - mt32-pi(라즈베리파이용 실물 SPE3 에뮬레이터)가 물리 LCD에
     /// 표시하는 것과 같은 값입니다. 100ms마다 폴링해서 바뀔 때만 갱신하므로,
-    /// 여기서는 그냥 받은 텍스트를 그대로 보여주면 됩니다(MTS5/88처럼 라우터를
+    /// 여기서는 그냥 받은 텍스트를 그대로 보여주면 됩니다(SPE5/88처럼 라우터를
     /// 감시해서 근사치를 만들 필요가 없어졌습니다).
     /// </summary>
     public partial class Mt32Display : UserControl
     {
-        private const int Columns = 20; // MTS3 LCD 가로 글자 수
+        private const int Columns = 20; // SPE3 LCD 가로 글자 수
 
         public Mt32Display()
         {
             InitializeComponent();
-            Write("SPWare  MTS3");
+            Write("SPWare  SPE3");
             Knob.ValueChanged += v =>
             {
                 _lastKnobTick = Environment.TickCount64;
@@ -152,7 +152,7 @@ namespace SPWare.VirtualSoundCanvas.UI
             e.Handled = true;
         }
 
-        /// <summary>RESET 버튼. MainWindow가 MTS3에 리셋 SysEx를 보내고 마스터 볼륨을 다시 맞춘다.</summary>
+        /// <summary>RESET 버튼. MainWindow가 SPE3에 리셋 SysEx를 보내고 마스터 볼륨을 다시 맞춘다.</summary>
         public event Action? ResetRequested;
 
         private void OnResetButtonDown(object sender, MouseButtonEventArgs e)
@@ -166,8 +166,8 @@ namespace SPWare.VirtualSoundCanvas.UI
             e.Handled = true;
         }
 
-        // ---- SELECT/VOLUME 노브 = MTS3 마스터 볼륨 ----
-        /// <summary>노브를 사용자가 돌렸을 때(1~100). MainWindow가 MTS3에 마스터 볼륨 SysEx를 보낸다.</summary>
+        // ---- SELECT/VOLUME 노브 = SPE3 마스터 볼륨 ----
+        /// <summary>노브를 사용자가 돌렸을 때(1~100). MainWindow가 SPE3에 마스터 볼륨 SysEx를 보낸다.</summary>
         public event Action<int>? MasterVolumeChanged;
 
         /// <summary>현재 노브 값(1~100).</summary>
@@ -197,7 +197,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         }
 
         // ---- MIDI MESSAGE 램프 ----
-        // 실기는 MIDI를 받을 때마다 램프가 깜박인다. 여기서는 MTS3로 가는 노트가 들어온 시각만 기록하고
+        // 실기는 MIDI를 받을 때마다 램프가 깜박인다. 여기서는 SPE3로 가는 노트가 들어온 시각만 기록하고
         // (MIDI 스레드에서 UI를 직접 건드리지 않도록), UI 타이머가 그 시각을 보고 램프를 켜고 끈다.
         private static readonly Brush LedOn = new SolidColorBrush(Color.FromRgb(0x3C, 0xF0, 0x3C));
         private static readonly Brush LedOff = new SolidColorBrush(Color.FromRgb(0x12, 0x3B, 0x12));
@@ -206,7 +206,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         private bool _ledLit;
         private readonly DispatcherTimer _ledTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
 
-        /// <summary>라우터를 연결해서, 이 패널의 엔진(MTS3)으로 가는 노트에 램프가 반응하게 합니다.</summary>
+        /// <summary>라우터를 연결해서, 이 패널의 엔진(SPE3)으로 가는 노트에 램프가 반응하게 합니다.</summary>
         public void Attach(MidiRouter router, ISynthEngine engine)
         {
             router.ChannelActivity += (_, m) =>
@@ -238,7 +238,7 @@ namespace SPWare.VirtualSoundCanvas.UI
         {
             text ??= string.Empty;
             // 배포판 이름 표기: 엔진(ROM 펌웨어)이 보내는 글자의 제품명도 같은 이름으로 바꿔 보여 준다(글자 수는 유지).
-            text = text.Replace("Roland", "SPWare").Replace("MT-32", "MTS3 ").Replace("CM-32L", "MTS3L ");
+            text = text.Replace("Roland", "SPWare").Replace("MT-32", "SPE3 ").Replace("CM-32L", "SPE3L ");
             if (text.Length > Columns) text = text.Substring(0, Columns);
             LcdText.Text = text.PadRight(Columns);
         }

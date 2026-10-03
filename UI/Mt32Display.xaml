@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              d:DesignWidth="420" d:DesignHeight="120">
 
-    <!-- MTS3 본체 앞판: 실기 사진처럼 검은 케이스 안에 스모크 유리 패널이 있고,
+    <!-- SPE3 본체 앞판: 실기 사진처럼 검은 케이스 안에 스모크 유리 패널이 있고,
          그 안에 회색 실크스크린 / LCD / MIDI MESSAGE 램프가 들어 있다 -->
     <UserControl.Resources>
         <!-- 실기 버튼(PART/VOLUME) 공통 모양: 어두운 사각 버튼 + 실크스크린 글자.
@@ -83,8 +83,8 @@
             </Border.Background>
 
             <StackPanel>
-                <!-- 실기 전면 실크스크린(회색): SPWare / MULTI TIMBRE SOUND MODULE ............ MTS3
-                     SPWare는 둥근 굵은 산세리프, MTS3와 작은 문구는 가로로 넓고 각진 글자체(Eurostile류)다.
+                <!-- 실기 전면 실크스크린(회색): SPWare / MULTI TIMBRE SOUND MODULE ............ SPE3
+                     SPWare는 둥근 굵은 산세리프, SPE3와 작은 문구는 가로로 넓고 각진 글자체(Eurostile류)다.
                      넓은 글자체가 설치돼 있지 않아 Bahnschrift를 가로로 늘려 흉내낸다. -->
                 <Grid Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
@@ -99,7 +99,7 @@
                             </TextBlock.LayoutTransform>
                         </TextBlock>
                     </StackPanel>
-                    <TextBlock Text="MTS3" FontFamily="Bahnschrift" FontSize="28"
+                    <TextBlock Text="SPE3" FontFamily="Bahnschrift" FontSize="28"
                                Foreground="#B4BCCB" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                         <TextBlock.LayoutTransform>
                             <ScaleTransform ScaleX="1.35" ScaleY="1"/>
@@ -128,7 +128,7 @@
                         </Border.Effect>
 
                         <!-- CursorLine: 실기 LCD는 글자 밑에 얇은 커서 줄이 항상 보인다 -->
-                        <ui:DotMatrixLcd x:Name="LcdText" Text="SPWare  MTS3" CursorLine="True" CornerRatio="0.06"
+                        <ui:DotMatrixLcd x:Name="LcdText" Text="SPWare  SPE3" CursorLine="True" CornerRatio="0.06"
                                              OnBrush="#D6EA3A" HaloBrush="#12E4F248" DotFill="0.86"
                                              OffBrush="#C0305C0A" CursorBrush="#C0305C0A"/>
                     </Border>
@@ -148,7 +148,7 @@
             </StackPanel>
         </Border>
 
-            <!-- 유리 밖 오른쪽 SELECT/VOLUME 노브(실기 모양): 이 노브는 MTS3의 마스터 볼륨(SysEx)을 돌리고,
+            <!-- 유리 밖 오른쪽 SELECT/VOLUME 노브(실기 모양): 이 노브는 SPE3의 마스터 볼륨(SysEx)을 돌리고,
                  액정의 Vol 값과 같이 움직인다. 잡고 돌리거나 마우스 휠 -->
             <StackPanel Grid.Column="1" Margin="14,0,8,0" VerticalAlignment="Center">
                 <TextBlock Text="SELECT/VOLUME" FontFamily="Bahnschrift" FontSize="10"
@@ -231,12 +231,12 @@
                 <Border x:Name="VolumeBtn" Style="{StaticResource PanelButtonSquare}"
                         HorizontalAlignment="Center"
                         MouseLeftButtonDown="OnVolumeButtonDown"
-                        ToolTip="먼저 PART를 고른 뒤 누르면, 노브가 그 파트의 음량(0~100)을 조절합니다. 다시 누르면 노브가 MTS3 전체 음량으로 돌아갑니다."/>
+                        ToolTip="먼저 PART를 고른 뒤 누르면, 노브가 그 파트의 음량(0~100)을 조절합니다. 다시 누르면 노브가 SPE3 전체 음량으로 돌아갑니다."/>
                 <!-- 실기에는 없는 소프트웨어 RESET: Munt를 초기 상태로 되돌린다(SysEx 7F 00 00) -->
                 <Border x:Name="ResetBtn" Style="{StaticResource PanelButtonSquare}"
                         HorizontalAlignment="Center" Margin="2,4,2,2"
                         MouseLeftButtonDown="OnResetButtonDown"
-                        ToolTip="MTS3를 초기 상태로 리셋합니다(다른 게임의 음색/설정이 남아 소리가 다르게 들릴 때). 마스터 볼륨은 노브 값으로 다시 맞춥니다.">
+                        ToolTip="SPE3를 초기 상태로 리셋합니다(다른 게임의 음색/설정이 남아 소리가 다르게 들릴 때). 마스터 볼륨은 노브 값으로 다시 맞춥니다.">
                     <TextBlock Text="RESET" Style="{StaticResource PanelButtonText}"/>
                 </Border>
             </StackPanel>

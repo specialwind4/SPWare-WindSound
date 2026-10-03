@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="40" Height="40" Cursor="Hand">
 
-    <!-- 볼륨 노브: 실기 MTS3의 SELECT/VOLUME 노브는 무광 검정 원통에 흰 표시선 하나뿐인 밋밋한 모양이다.
+    <!-- 볼륨 노브: 실기 SPE3의 SELECT/VOLUME 노브는 무광 검정 원통에 흰 표시선 하나뿐인 밋밋한 모양이다.
          표시선 층이 -135도(1) ~ +135도(100)를 돈다. 조작은 VolumeKnob.xaml.cs 참고 -->
     <Grid x:Name="Root" Background="Transparent">
         <Ellipse Fill="#161618" Stroke="#2C2C30" StrokeThickness="1"/>

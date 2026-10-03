@@ -7,7 +7,7 @@
              mc:Ignorable="d"
              d:DesignWidth="480" d:DesignHeight="230">
 
-    <!-- MTS5 앞판: 실기 사진/매뉴얼처럼 어두운 청회색 케이스. 왼쪽 POWER/VOLUME/MIDI IN 2/PHONES,
+    <!-- SPE5 앞판: 실기 사진/매뉴얼처럼 어두운 청회색 케이스. 왼쪽 POWER/VOLUME/MIDI IN 2/PHONES,
          가운데 검은 베젤의 주황 LCD, 오른쪽 ALL/MUTE와 화살표 버튼 8쌍(PART ... MIDI CH). 조작부는 모양만 있다. -->
     <Border CornerRadius="5" Padding="10,8,10,10" BorderThickness="1">
         <Border.Resources>
@@ -246,7 +246,7 @@
                     </Border>
                 </Border>
 
-                <!-- 하단 인쇄: Wind Sound ............ PART ............ MTS5 -->
+                <!-- 하단 인쇄: Wind Sound ............ PART ............ SPE5 -->
                 <Grid Grid.Row="2" Margin="2,6,2,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
                         <TextBlock Text="Wind" FontFamily="Bahnschrift Light" FontSize="15"
@@ -260,7 +260,7 @@
                     </StackPanel>
                     <TextBlock Text="PART" Style="{StaticResource Silk}" FontSize="10"
                                HorizontalAlignment="Center" VerticalAlignment="Top" Margin="70,0,0,0"/>
-                    <TextBlock Text="MTS5" FontFamily="Bahnschrift" FontWeight="SemiBold" FontStyle="Italic" FontSize="18"
+                    <TextBlock Text="SPE5" FontFamily="Bahnschrift" FontWeight="SemiBold" FontStyle="Italic" FontSize="18"
                                Foreground="#D08A5C" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                         <TextBlock.LayoutTransform>
                             <ScaleTransform ScaleX="1.12" ScaleY="1"/>

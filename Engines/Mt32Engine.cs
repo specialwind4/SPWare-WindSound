@@ -12,23 +12,23 @@ namespace SPWare.VirtualSoundCanvas.Engines
     }
 
     /// <summary>
-    /// MTS3 / MTS3L 엔진. Munt.NET(C# 래퍼) 대신, mt32emu(munt/munt) 본체를
+    /// SPE3 / SPE3L 엔진. Munt.NET(C# 래퍼) 대신, mt32emu(munt/munt) 본체를
     /// 직접 감싼 얇은 C 래퍼(mt32_wrap.dll)를 씁니다.
     ///
     /// 왜 Munt.NET을 버렸는가: 리플렉션으로 Munt.NET의 실제 공개 메서드를 전수
     /// 확인해보니(LoadRoms/SetSampleRate/Open/PlayMsg/PlaySysex/Render/Dispose 7개)
     /// LCD 텍스트를 읽어오는 기능이 아예 없었습니다. 반면 mt32-pi(라즈베리파이용
-    /// 실물 MTS3 에뮬레이터, 물리 LCD에 음색명을 실제로 표시함)의 소스를 보면
+    /// 실물 SPE3 에뮬레이터, 물리 LCD에 음색명을 실제로 표시함)의 소스를 보면
     /// mt32emu 본체에 직접 이렇게 호출합니다:
     ///
     ///   m_pSynth->getDisplayState(m_LCDTextBuffer, bNarrowPartStateText);
     ///
-    /// 그래서 MTS5Engine과 같은 패턴으로 mt32emu 소스(munt/munt) 위에 우리만의
+    /// 그래서 SPE5Engine과 같은 패턴으로 mt32emu 소스(munt/munt) 위에 우리만의
     /// C 래퍼(src/csharp_wrap/mt32_wrap.cpp)를 새로 작성했습니다. 실제로 링크·실행
     /// 까지 검증했고, LCD 텍스트가 실기 사진과 동일한 형식으로 나오는 것까지
-    /// 확인했습니다("** SPWare MTS3 **" → 노트 연주 시 "1 2 3 4 5 R |vol:100").
+    /// 확인했습니다("** SPWare SPE3 **" → 노트 연주 시 "1 2 3 4 5 R |vol:100").
     ///
-    /// 알아두어야 할 것 - MTS3의 유명한 함정: 실기는 기본 상태에서 MIDI 채널
+    /// 알아두어야 할 것 - SPE3의 유명한 함정: 실기는 기본 상태에서 MIDI 채널
     /// 1번(0-based 0)에 어느 파트도 배정되어 있지 않습니다(공장 출하 패치가
     /// 채널 2~9번에 파트 1~8을, 10번에 리듬을 배정). 채널 1번으로 노트를 보내면
     /// "정상적으로 아무 반응도 없습니다" - 버그가 아니라 실기 그대로의 동작입니다.
@@ -39,7 +39,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
     ///     (munt/munt 저장소의 mt32emu 폴더에 추가된 mt32_wrap 타깃을 CMake로 빌드)
     ///     cmake -B build -G "Visual Studio 17 2022" -A x64
     ///     cmake --build build --config Release --target mt32_wrap
-    ///  2. MTS3/MTS3L ROM 세트(실기 덤프) → ControlRomPath/PcmRomPath에 지정
+    ///  2. SPE3/SPE3L ROM 세트(실기 덤프) → ControlRomPath/PcmRomPath에 지정
     /// </summary>
     public sealed class Mt32Engine : ISynthEngine
     {
@@ -59,7 +59,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
         private readonly object _sync = new();
         private string _lastDisplayText = "";
 
-        public string Name => "MTS3 (mt32emu)";
+        public string Name => "SPE3 (mt32emu)";
         public bool HandlesDeviceInquiry => true;
         public event EventHandler<string>? LcdTextChanged;
 
@@ -90,7 +90,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
                 {
                     string detail = GetLastNativeMessage();
                     throw new InvalidOperationException(
-                        $"MTS3 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
+                        $"SPE3 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
                         $"(CONTROL: {ControlRomPath}, PCM: {PcmRomPath})");
                 }
             }
@@ -124,14 +124,14 @@ namespace SPWare.VirtualSoundCanvas.Engines
         }
 
         /// <summary>
-        /// MTS3를 초기 상태로 되돌린다(Munt의 리셋 SysEx: 주소 7F 00 00, 데이터 없음).
+        /// SPE3를 초기 상태로 되돌린다(Munt의 리셋 SysEx: 주소 7F 00 00, 데이터 없음).
         /// 다른 게임이 남긴 음색/파트 설정이 지워진다. 마스터 볼륨은 호출한 쪽에서 다시 맞춘다.
         /// </summary>
         public void Reset() =>
             SysEx(new byte[] { 0xF0, 0x41, 0x10, 0x16, 0x12, 0x7F, 0x00, 0x00, 0x01, 0xF7 });
 
         /// <summary>
-        /// MTS3 마스터 볼륨(0~100)을 실기와 같은 방식으로(시스템 영역 SysEx, 주소 10 00 16) 바꾼다.
+        /// SPE3 마스터 볼륨(0~100)을 실기와 같은 방식으로(시스템 영역 SysEx, 주소 10 00 16) 바꾼다.
         /// 액정의 Vol 값도 이 값을 따라 바뀐다.
         /// </summary>
         public void SetMasterVolume(int volume)

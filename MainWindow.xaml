@@ -426,7 +426,7 @@
                     <TextBlock Text="MIDI 종류 (고르면 채널 배정과 기본 엔진이 한 번에 정해집니다)" Style="{StaticResource FieldLabel}"/>
                     <ComboBox x:Name="KindCombo" Width="300" HorizontalAlignment="Left"/>
                     <CheckBox x:Name="AutoKindCheck" Margin="0,8,0,14" Foreground="#9A9AA6"
-                              Content="들어오는 MIDI(GM On / GS Reset / MTS3 SysEx)를 보고 종류를 자동으로 바꾸기"/>
+                              Content="들어오는 MIDI(GM On / GS Reset / SPE3 SysEx)를 보고 종류를 자동으로 바꾸기"/>
                     <TextBlock Text="직접 배정" Style="{StaticResource FieldLabel}" Margin="2,0,0,4"/>
                     <StackPanel Orientation="Horizontal">
                         <StackPanel Width="80" Margin="0,0,10,0">
@@ -509,7 +509,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="44"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="MTS3" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock Text="SPE3" VerticalAlignment="Center" FontSize="12"/>
                         <Slider x:Name="Mt32VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="100"
                                 ValueChanged="OnVolumeChanged"/>
                         <TextBlock x:Name="Mt32VolumeText" Grid.Column="2" Text="100" VerticalAlignment="Center"
@@ -521,7 +521,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="44"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="MTS5" VerticalAlignment="Center" FontSize="12"/>
+                        <TextBlock Text="SPE5" VerticalAlignment="Center" FontSize="12"/>
                         <Slider x:Name="Sc55VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="100"
                                 ValueChanged="OnVolumeChanged"/>
                         <TextBlock x:Name="Sc55VolumeText" Grid.Column="2" Text="100" VerticalAlignment="Center"
@@ -577,27 +577,27 @@
                     <StackPanel>
                         <TextBlock Text="빠른 시작" Style="{StaticResource HelpHead}" Margin="0,0,0,5"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="1. loopMIDI 같은 프로그램으로 가상 MIDI 포트를 하나 만듭니다.&#x0A;2. 설정 &gt; MIDI 포트에서 그 포트를 &quot;가상 입력 포트&quot;로 고릅니다.&#x0A;3. 쓸 장치 탭(MTS3 / MTS5)을 열고 설정에서 ROM 폴더를 지정합니다.&#x0A;4. [시작]을 누른 뒤 게임이나 시퀀서의 MIDI 출력을 그 포트로 지정합니다.&#x0A;&quot;앱을 켜면 자동으로 시작&quot;에 체크하면 다음부터는 실행만 하면 됩니다."/>
+                                   Text="1. loopMIDI 같은 프로그램으로 가상 MIDI 포트를 하나 만듭니다.&#x0A;2. 설정 &gt; MIDI 포트에서 그 포트를 &quot;가상 입력 포트&quot;로 고릅니다.&#x0A;3. 쓸 장치 탭(SPE3 / SPE5)을 열고 설정에서 ROM 폴더를 지정합니다.&#x0A;4. [시작]을 누른 뒤 게임이나 시퀀서의 MIDI 출력을 그 포트로 지정합니다.&#x0A;&quot;앱을 켜면 자동으로 시작&quot;에 체크하면 다음부터는 실행만 하면 됩니다."/>
 
                         <TextBlock Text="화면과 탭" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="맨 위 탭(MTS3 / MTS5)은 화면에 어느 장치를 보여 줄지만 고릅니다. 소리가 어느 장치로 가는지는 설정의 채널 배정이 정합니다. 종료할 때 보던 탭, 창 위치와 크기, 접어 둔 설정 항목을 기억해서 다음 실행 때 그대로 엽니다. 앱은 한 번에 하나만 실행됩니다."/>
+                                   Text="맨 위 탭(SPE3 / SPE5)은 화면에 어느 장치를 보여 줄지만 고릅니다. 소리가 어느 장치로 가는지는 설정의 채널 배정이 정합니다. 종료할 때 보던 탭, 창 위치와 크기, 접어 둔 설정 항목을 기억해서 다음 실행 때 그대로 엽니다. 앱은 한 번에 하나만 실행됩니다."/>
 
                         <TextBlock Text="MIDI 종류와 채널 배정" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="채널 배정에서 MIDI 종류를 고르면 채널 배정과 기본 엔진이 한 번에 정해집니다. 자동 감지를 켜 두면 들어오는 GM On / GS Reset / MTS3 SysEx를 보고 종류를 알아서 바꿉니다. 직접 배정은 채널(0~15)마다 엔진을 따로 정하는 기능이고, 배정하지 않은 채널은 기본 엔진으로 갑니다. MTS3의 소리 파트는 MIDI 채널 2~9(리듬은 10, 1~16 기준)에 있으므로 MTS3로 들으려면 채널 1이 아니라 그쪽 채널을 쓰세요. 배정 화면의 채널 번호는 0~15 기준이라 한 칸씩 작습니다."/>
+                                   Text="채널 배정에서 MIDI 종류를 고르면 채널 배정과 기본 엔진이 한 번에 정해집니다. 자동 감지를 켜 두면 들어오는 GM On / GS Reset / SPE3 SysEx를 보고 종류를 알아서 바꿉니다. 직접 배정은 채널(0~15)마다 엔진을 따로 정하는 기능이고, 배정하지 않은 채널은 기본 엔진으로 갑니다. SPE3의 소리 파트는 MIDI 채널 2~9(리듬은 10, 1~16 기준)에 있으므로 SPE3로 들으려면 채널 1이 아니라 그쪽 채널을 쓰세요. 배정 화면의 채널 번호는 0~15 기준이라 한 칸씩 작습니다."/>
 
-                        <TextBlock Text="MTS3 화면" Style="{StaticResource HelpHead}"/>
+                        <TextBlock Text="SPE3 화면" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="액정은 엔진이 알려 주는 실기 LCD 글자 그대로입니다(파트 상태와 Vol). 오른쪽 SELECT/VOLUME 노브는 MTS3의 마스터 볼륨(1~100)입니다. 노브를 잡고 원을 그리듯 돌리거나 마우스 휠(한 칸에 2)로 조절하면 액정의 Vol 값도 같이 바뀌고, 게임이 볼륨 SysEx를 보내면 노브가 따라 돕니다. 값은 종료할 때 저장합니다. MIDI MESSAGE 램프는 MIDI를 받을 때 깜박입니다."/>
+                                   Text="액정은 엔진이 알려 주는 실기 LCD 글자 그대로입니다(파트 상태와 Vol). 오른쪽 SELECT/VOLUME 노브는 SPE3의 마스터 볼륨(1~100)입니다. 노브를 잡고 원을 그리듯 돌리거나 마우스 휠(한 칸에 2)로 조절하면 액정의 Vol 값도 같이 바뀌고, 게임이 볼륨 SysEx를 보내면 노브가 따라 돕니다. 값은 종료할 때 저장합니다. MIDI MESSAGE 램프는 MIDI를 받을 때 깜박입니다."/>
 
-                        <TextBlock Text="MTS5 화면" Style="{StaticResource HelpHead}"/>
+                        <TextBlock Text="SPE5 화면" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="액정과 버튼은 에뮬레이터 펌웨어가 실제로 처리합니다. 버튼은 왼쪽 클릭 = 누르는 동안 눌림, 오른쪽 클릭 = 눌린 채로 고정(다시 오른쪽 클릭하면 해제), Shift+클릭 = 그 쌍의 ◀▶를 동시에 누름입니다. PART ◀▶로 파트를 고르면 LEVEL, PAN, REVERB, CHORUS, KEY SHIFT, INSTRUMENT, MIDI CH 조정이 그 파트에만 적용됩니다(파트 N = MIDI 채널 N, 파트 10 = 드럼). ALL은 전체 파트, MUTE는 음소거입니다. POWER를 누르면 대기 상태가 되고 다시 누르면 돌아옵니다. VOLUME 노브(1~100)는 MTS5 음량입니다. 게임이 프로그램 체인지나 CC를 보내면 패널에서 바꾼 값을 덮어씁니다. 액정 대비는 PART ◀▶ 동시 누름으로 설정 메뉴에 들어가 ALL/MUTE로 &quot;LCD Contrast&quot;를 고르고 INSTRUMENT ◀▶로 값을 바꾼 뒤 다시 PART ◀▶를 동시에 눌러 확정하며, 값은 저장됩니다."/>
+                                   Text="액정과 버튼은 에뮬레이터 펌웨어가 실제로 처리합니다. 버튼은 왼쪽 클릭 = 누르는 동안 눌림, 오른쪽 클릭 = 눌린 채로 고정(다시 오른쪽 클릭하면 해제), Shift+클릭 = 그 쌍의 ◀▶를 동시에 누름입니다. PART ◀▶로 파트를 고르면 LEVEL, PAN, REVERB, CHORUS, KEY SHIFT, INSTRUMENT, MIDI CH 조정이 그 파트에만 적용됩니다(파트 N = MIDI 채널 N, 파트 10 = 드럼). ALL은 전체 파트, MUTE는 음소거입니다. POWER를 누르면 대기 상태가 되고 다시 누르면 돌아옵니다. VOLUME 노브(1~100)는 SPE5 음량입니다. 게임이 프로그램 체인지나 CC를 보내면 패널에서 바꾼 값을 덮어씁니다. 액정 대비는 PART ◀▶ 동시 누름으로 설정 메뉴에 들어가 ALL/MUTE로 &quot;LCD Contrast&quot;를 고르고 INSTRUMENT ◀▶로 값을 바꾼 뒤 다시 PART ◀▶를 동시에 눌러 확정하며, 값은 저장됩니다."/>
 
                         <TextBlock Text="볼륨은 세 종류" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"
-                                   Text="설정 &gt; 오디오의 슬라이더(마스터, MTS3, MTS5)는 이 앱이 소리를 섞어 내보낼 때의 크기입니다. MTS3 화면의 노브는 MTS3 자체의 마스터 볼륨이라 슬라이더와 별개이고, MTS5 화면의 노브는 MTS5 슬라이더와 같은 값입니다."/>
+                                   Text="설정 &gt; 오디오의 슬라이더(마스터, SPE3, SPE5)는 이 앱이 소리를 섞어 내보낼 때의 크기입니다. SPE3 화면의 노브는 SPE3 자체의 마스터 볼륨이라 슬라이더와 별개이고, SPE5 화면의 노브는 SPE5 슬라이더와 같은 값입니다."/>
 
                         <TextBlock Text="소리가 안 날 때" Style="{StaticResource HelpHead}"/>
                         <TextBlock Style="{StaticResource HelpBody}"

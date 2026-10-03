@@ -15,7 +15,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
 
     /// <summary>
     /// 가상 MIDI 입력 하나를 받아, 채널 단위로 서로 다른 ISynthEngine에
-    /// 분배하는 라우터. MTS3/SC-88Pro 두 "인격"이 한 포트 안에 공존하는
+    /// 분배하는 라우터. SPE3/SC-88Pro 두 "인격"이 한 포트 안에 공존하는
     /// 핵심 로직이 여기 있습니다.
     /// </summary>
     public class MidiRouter
@@ -77,13 +77,13 @@ namespace SPWare.VirtualSoundCanvas.Midi
         // MIDI 종류(프리셋) + 자동 감지
         // ---------------------------------------------------------------
 
-        /// <summary>종류 -> 엔진 대응. MainWindow가 채워 준다(Mt32 -> MTS3, GmGs -> MTS5, Sc88 -> 외부 전달).</summary>
+        /// <summary>종류 -> 엔진 대응. MainWindow가 채워 준다(Mt32 -> SPE3, GmGs -> SPE5, Sc88 -> 외부 전달).</summary>
         public Func<MidiKind, ISynthEngine?>? KindToEngine { get; set; }
 
         /// <summary>지금 적용된 종류. Custom이면 사용자가 배정을 직접 관리 중.</summary>
         public MidiKind CurrentKind { get; private set; } = MidiKind.Custom;
 
-        /// <summary>true면 들어오는 SysEx(GM On, GS Reset, MTS3 SysEx)로 종류를 알아채서 자동으로 바꾼다.</summary>
+        /// <summary>true면 들어오는 SysEx(GM On, GS Reset, SPE3 SysEx)로 종류를 알아채서 자동으로 바꾼다.</summary>
         public bool AutoDetectKind { get; set; }
 
         /// <summary>종류가 적용될 때마다 발생. 자동 감지면 MIDI 스레드에서 올 수 있으니 UI는 Dispatcher로 넘겨서 쓸 것.</summary>
