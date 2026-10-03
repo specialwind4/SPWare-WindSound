@@ -20,7 +20,7 @@ dotnet --version
 echo.
 
 echo [2/2] Release 빌드 및 단일 exe 배포 중... (인터넷 연결 필요, 첫 실행은 시간이 걸립니다)
-dotnet publish SPWare.VirtualSoundCanvas -c Release
+dotnet publish "%~dp0SPWare.VirtualSoundCanvas.csproj" -c Release -r win-x64
 
 if errorlevel 1 (
     echo.
@@ -29,7 +29,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set OUT_DIR=%~dp0SPWare.VirtualSoundCanvas\bin\Release\net8.0-windows\win-x64\publish
+set OUT_DIR=%~dp0bin\Release\net8.0-windows\win-x64\publish
 
 echo.
 echo ================================================
