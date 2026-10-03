@@ -1,0 +1,20 @@
+# build output
+bin/
+obj/
+.vs/
+*.user
+*.suo
+publish/
+
+# ROM dumps and emulator state must never be committed (copyrighted)
+Roms/
+*.rom
+*.ROM
+*.bin
+*.bin0
+
+# local test leftovers
+*.pdb
+*.zip
+!native-src/*.zip
+crash.log

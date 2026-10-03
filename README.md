@@ -1,0 +1,64 @@
+# SPWare Wind Sound
+
+**English** | [한국어](#한국어)
+
+A small Windows (WPF, .NET 8) app that plays MIDI from games and sequencers through two software sound-module emulators:
+
+| Name in the app | What it is | Based on |
+|---|---|---|
+| **MTS3** | MT-32 compatible sound emulator | [Munt](https://github.com/munt/munt) (mt32emu) |
+| **MTS5** | SC-55mkII compatible sound emulator | [Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) |
+
+Incoming MIDI arrives through a virtual MIDI port (e.g. [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)), is routed per channel to one of the engines, and is played through WASAPI. The window shows the front panel of each engine (LCD, buttons, volume knob).
+
+> **No ROMs are included and none may be committed to this repository.** The emulators need ROM data dumped from hardware you own. See `Roms/ROMS_README.txt` in the release package for the folder and file names.
+
+## Download
+
+Get the ready-to-run package from the **Releases** page (`SPWare.WindSound_public.zip`). No .NET installation is needed.
+
+## Build from source
+
+Requirements: Windows 10/11 x64, [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+
+```bash
+dotnet publish SPWare.VirtualSoundCanvas.csproj -c Release -r win-x64
+```
+
+The output is a single `SPWare.WindSound.exe` in `bin/Release/net8.0-windows/win-x64/publish/`.
+The prebuilt native libraries (`Native/x64/mt32_wrap.dll`, `nuked_sc55_wrap.dll`) are built from the sources in `native-src/` (see below).
+
+## Native libraries and licenses
+
+* `Native/x64/mt32_wrap.dll` – mt32emu (Munt, **LGPL-2.1-or-later**) plus a thin C wrapper. Source: `native-src/munt-mt32emu-wrap-source.zip`.
+* `Native/x64/nuked_sc55_wrap.dll` – modified Nuked-SC55 (**original MAME license: no selling, no commercial use; modified versions must ship their complete source**). Source: `native-src/Nuked-SC55-wrap-source.zip`.
+* NAudio (MIT).
+
+Because of the Nuked-SC55 license this program is **free and non-commercial only**. The license texts are in `Licenses/` of the release package and inside the source zips.
+
+Roland and its product names are trademarks of Roland Corporation. This project is not affiliated with, sponsored by or endorsed by Roland.
+
+## Language
+
+The UI is available in English and Korean (Settings → Language). *Auto* follows your Windows language.
+
+---
+
+## 한국어
+
+게임/시퀀서의 MIDI를 두 가지 소프트웨어 음원 에뮬레이터로 재생하는 Windows(WPF, .NET 8) 프로그램입니다.
+
+* **MTS3** – MT-32 호환 음원 에뮬레이터 ([Munt](https://github.com/munt/munt) 기반)
+* **MTS5** – SC-55mkII 호환 음원 에뮬레이터 ([Nuked-SC55](https://github.com/nukeykt/Nuked-SC55) 기반)
+
+가상 MIDI 포트(loopMIDI 등)로 들어온 MIDI를 채널별로 엔진에 나눠 보내고 WASAPI로 재생합니다. 각 엔진의 앞판(LCD, 버튼, 볼륨 노브)이 화면에 나옵니다.
+
+> **ROM은 포함되어 있지 않으며, 이 저장소에 올려서도 안 됩니다.** 본인이 가진 기기에서 직접 준비하세요. 폴더/파일 이름은 릴리스 패키지의 `Roms/ROMS_README.txt`에 있습니다.
+
+* **내려받기**: Releases 페이지의 `SPWare.WindSound_public.zip` (.NET 설치 불필요)
+* **빌드**: .NET 8 SDK 설치 후 `dotnet publish SPWare.VirtualSoundCanvas.csproj -c Release -r win-x64`
+* **라이선스**: Nuked-SC55(MAME 라이선스) 때문에 **무료·비상업적 사용만** 가능합니다. Munt는 LGPL-2.1 이상입니다. 네이티브 DLL의 소스는 `native-src/`에 있습니다.
+* Roland 및 제품명은 Roland Corporation의 상표이며, 이 프로젝트는 Roland와 제휴/후원/승인 관계가 없습니다.
+* 화면 언어는 설정 → Language / 언어 에서 바꿀 수 있습니다(Auto = 윈도 언어).
+
+Copyright (c) SPWare (Special Wind Software)

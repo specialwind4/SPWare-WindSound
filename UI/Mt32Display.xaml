@@ -1,0 +1,246 @@
+﻿<UserControl x:Class="SPWare.VirtualSoundCanvas.UI.Mt32Display"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:SPWare.VirtualSoundCanvas.UI"
+             mc:Ignorable="d"
+             d:DesignWidth="420" d:DesignHeight="120">
+
+    <!-- MTS3 본체 앞판: 실기 사진처럼 검은 케이스 안에 스모크 유리 패널이 있고,
+         그 안에 회색 실크스크린 / LCD / MIDI MESSAGE 램프가 들어 있다 -->
+    <UserControl.Resources>
+        <!-- 실기 버튼(PART/VOLUME) 공통 모양: 어두운 사각 버튼 + 실크스크린 글자.
+             고른 파트/음량 모드가 켜졌을 때는 코드비하인드에서 배경을 강조색으로 바꾼다. -->
+        <Style x:Key="PanelLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#A4ACBA"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="FontSize" Value="9.5"/>
+        </Style>
+        <Style x:Key="PanelButton" TargetType="Border">
+            <Setter Property="Background" Value="#0E0E10"/>
+            <Setter Property="BorderBrush" Value="#4A4B51"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="PanelButtonSquare" TargetType="Border" BasedOn="{StaticResource PanelButton}">
+            <Setter Property="Width" Value="62"/>
+        </Style>
+        <Style x:Key="PanelButtonText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#C8C9CF"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="PanelHint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#6E7686"/>
+            <Setter Property="FontFamily" Value="Bahnschrift"/>
+            <Setter Property="FontSize" Value="8.5"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Border CornerRadius="5" Padding="7" BorderThickness="1">
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#4A4846" Offset="0"/>
+                <GradientStop Color="#151413" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#252322" Offset="0"/>
+                <GradientStop Color="#151413" Offset="0.6"/>
+                <GradientStop Color="#0E0D0D" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+
+        <StackPanel>
+        <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 스모크 유리 패널 (실크스크린과 LCD가 이 유리 뒤에 있다) -->
+        <Border Grid.Column="0" CornerRadius="3" Padding="14,10,14,12" BorderThickness="1">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#6A6866" Offset="0"/>
+                    <GradientStop Color="#0A0909" Offset="0.25"/>
+                    <GradientStop Color="#2E2C2B" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#2E2C2B" Offset="0"/>
+                    <GradientStop Color="#1B1A19" Offset="0.5"/>
+                    <GradientStop Color="#121110" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+
+            <StackPanel>
+                <!-- 실기 전면 실크스크린(회색): SPWare / MULTI TIMBRE SOUND MODULE ............ MTS3
+                     SPWare는 둥근 굵은 산세리프, MTS3와 작은 문구는 가로로 넓고 각진 글자체(Eurostile류)다.
+                     넓은 글자체가 설치돼 있지 않아 Bahnschrift를 가로로 늘려 흉내낸다. -->
+                <Grid Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                        <TextBlock Text="SPWare" FontFamily="Arial Rounded MT Bold, Segoe UI" FontSize="34"
+                                   Foreground="#B4BCCB" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="MULTI PART&#x0A;SOUND MODULE" FontFamily="Bahnschrift"
+                                   FontSize="10" Foreground="#A4ACBA" LineHeight="11"
+                                   LineStackingStrategy="BlockLineHeight"
+                                   Margin="12,0,0,7" VerticalAlignment="Bottom">
+                            <TextBlock.LayoutTransform>
+                                <ScaleTransform ScaleX="1.5" ScaleY="1"/>
+                            </TextBlock.LayoutTransform>
+                        </TextBlock>
+                    </StackPanel>
+                    <TextBlock Text="MTS3" FontFamily="Bahnschrift" FontSize="28"
+                               Foreground="#B4BCCB" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                        <TextBlock.LayoutTransform>
+                            <ScaleTransform ScaleX="1.35" ScaleY="1"/>
+                        </TextBlock.LayoutTransform>
+                    </TextBlock>
+                </Grid>
+
+                <!-- LCD(왼쪽)와 MIDI MESSAGE 램프(오른쪽) -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LCD 본체: 20자 × 1줄. 실기 LCD는 초록 백라이트에 밝은 연두 글자. 색은 실기 사진에서 추출 -->
+                    <Border Grid.Column="0" CornerRadius="7" Padding="10,8" HorizontalAlignment="Stretch">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#59981D" Offset="0"/>
+                                <GradientStop Color="#3F7912" Offset="0.5"/>
+                                <GradientStop Color="#305E0D" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.Effect>
+                            <DropShadowEffect Color="#7FB01A" BlurRadius="12" ShadowDepth="0" Opacity="0.16"/>
+                        </Border.Effect>
+
+                        <!-- CursorLine: 실기 LCD는 글자 밑에 얇은 커서 줄이 항상 보인다 -->
+                        <ui:DotMatrixLcd x:Name="LcdText" Text="SPWare  MTS3" CursorLine="True" CornerRatio="0.06"
+                                             OnBrush="#D6EA3A" HaloBrush="#12E4F248" DotFill="0.86"
+                                             OffBrush="#C0305C0A" CursorBrush="#C0305C0A"/>
+                    </Border>
+
+                    <!-- MIDI MESSAGE: 실기는 MIDI를 받을 때마다 이 초록 램프가 깜박인다 -->
+                    <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="MIDI MESSAGE" FontFamily="Bahnschrift" FontSize="11"
+                                   Foreground="#A4ACBA" HorizontalAlignment="Center">
+                            <TextBlock.LayoutTransform>
+                                <ScaleTransform ScaleX="1.25" ScaleY="1"/>
+                            </TextBlock.LayoutTransform>
+                        </TextBlock>
+                        <Border x:Name="MidiLed" Width="30" Height="9" CornerRadius="2" Margin="0,7,0,0"
+                                Background="#123B12" BorderBrush="#0A1F0A" BorderThickness="1"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+            <!-- 유리 밖 오른쪽 SELECT/VOLUME 노브(실기 모양): 이 노브는 MTS3의 마스터 볼륨(SysEx)을 돌리고,
+                 액정의 Vol 값과 같이 움직인다. 잡고 돌리거나 마우스 휠 -->
+            <StackPanel Grid.Column="1" Margin="14,0,8,0" VerticalAlignment="Center">
+                <TextBlock Text="SELECT/VOLUME" FontFamily="Bahnschrift" FontSize="10"
+                           Foreground="#A4ACBA" HorizontalAlignment="Center" Margin="0,0,0,1">
+                    <TextBlock.LayoutTransform>
+                        <ScaleTransform ScaleX="1.15" ScaleY="1"/>
+                    </TextBlock.LayoutTransform>
+                </TextBlock>
+                <Grid Width="84" Height="84">
+                    <!-- 노브 둘레의 눈금 점(-135도 ~ +135도) -->
+                    <Canvas>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="14.1" Canvas.Top="66.4"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="5.1" Canvas.Top="51.7"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="3.7" Canvas.Top="34.5"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="10.3" Canvas.Top="18.5"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="23.5" Canvas.Top="7.3"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="40.2" Canvas.Top="3.2"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="57.0" Canvas.Top="7.3"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="70.2" Canvas.Top="18.5"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="76.8" Canvas.Top="34.5"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="75.4" Canvas.Top="51.7"/>
+                        <Ellipse Width="3.5" Height="3.5" Fill="#B8B8BE" Canvas.Left="66.4" Canvas.Top="66.4"/>
+                    </Canvas>
+                    <ui:VolumeKnob x:Name="Knob" Width="56" Height="56"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+
+        <!-- 실기처럼: PART로 파트를 고르고 VOLUME으로 그 파트의 음량(0~100)을 노브로 조절.
+             Munt(에뮬레이터 본체)는 앞판 버튼 반응 자체는 구현하지 않으므로(공식 주석: out of scope),
+             버튼 상태는 이 앱이 관리하고, 실제 값 변경은 매뉴얼에 나온 SysEx 주소로 직접 보낸다(Mt32Engine.SetPartVolume). -->
+        <Grid Margin="21,2,21,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- PART와 VOLUME을 서로 붙여서 오른쪽에 함께 둔다(빈 가운데 공간은 왼쪽 * 열이 흡수).
+                 라벨은 버튼 옆이 아니라 버튼들 가운데 위쪽에 둔다. -->
+            <StackPanel Grid.Column="1" Margin="0,0,20,0" VerticalAlignment="Center">
+                <TextBlock Text="PART" Style="{StaticResource PanelLabel}"
+                           HorizontalAlignment="Center" Margin="0,0,0,3"/>
+                <UniformGrid Columns="3" Rows="2" Width="150">
+                    <Border x:Name="PartBtn1" Style="{StaticResource PanelButton}" Tag="1"
+                            MouseLeftButtonDown="OnPartButtonDown"
+                            ToolTip="파트 1 선택 (Shift+클릭 = 파트 6 - 실기는 MASTER VOLUME을 누른 채 누른다)">
+                        <TextBlock Text="1" Style="{StaticResource PanelButtonText}"/>
+                    </Border>
+                    <Border x:Name="PartBtn2" Style="{StaticResource PanelButton}" Tag="2"
+                            MouseLeftButtonDown="OnPartButtonDown"
+                            ToolTip="파트 2 선택 (Shift+클릭 = 파트 7)">
+                        <TextBlock Text="2" Style="{StaticResource PanelButtonText}"/>
+                    </Border>
+                    <Border x:Name="PartBtn3" Style="{StaticResource PanelButton}" Tag="3"
+                            MouseLeftButtonDown="OnPartButtonDown"
+                            ToolTip="파트 3 선택 (Shift+클릭 = 파트 8)">
+                        <TextBlock Text="3" Style="{StaticResource PanelButtonText}"/>
+                    </Border>
+                    <Border x:Name="PartBtn4" Style="{StaticResource PanelButton}" Tag="4"
+                            MouseLeftButtonDown="OnPartButtonDown" ToolTip="파트 4 선택">
+                        <TextBlock Text="4" Style="{StaticResource PanelButtonText}"/>
+                    </Border>
+                    <Border x:Name="PartBtn5" Style="{StaticResource PanelButton}" Tag="5"
+                            MouseLeftButtonDown="OnPartButtonDown" ToolTip="파트 5 선택">
+                        <TextBlock Text="5" Style="{StaticResource PanelButtonText}"/>
+                    </Border>
+                    <Border x:Name="PartBtnRhythm" Style="{StaticResource PanelButton}" Tag="9"
+                            MouseLeftButtonDown="OnPartButtonDown" ToolTip="리듬 파트 선택">
+                        <TextBlock Text="RHYTHM" Style="{StaticResource PanelButtonText}" FontSize="6.3"/>
+                    </Border>
+                </UniformGrid>
+            </StackPanel>
+
+            <!-- 위 SELECT/VOLUME 노브 중심에 맞도록 폭을 노브와 비슷하게 잡고 가운데 정렬한다 -->
+            <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Width="62">
+                <TextBlock Text="VOLUME" Style="{StaticResource PanelLabel}"
+                           HorizontalAlignment="Center" Margin="0,0,0,3"/>
+                <Border x:Name="VolumeBtn" Style="{StaticResource PanelButtonSquare}"
+                        HorizontalAlignment="Center"
+                        MouseLeftButtonDown="OnVolumeButtonDown"
+                        ToolTip="먼저 PART를 고른 뒤 누르면, 노브가 그 파트의 음량(0~100)을 조절합니다. 다시 누르면 노브가 MTS3 전체 음량으로 돌아갑니다."/>
+                <!-- 실기에는 없는 소프트웨어 RESET: Munt를 초기 상태로 되돌린다(SysEx 7F 00 00) -->
+                <Border x:Name="ResetBtn" Style="{StaticResource PanelButtonSquare}"
+                        HorizontalAlignment="Center" Margin="2,4,2,2"
+                        MouseLeftButtonDown="OnResetButtonDown"
+                        ToolTip="MTS3를 초기 상태로 리셋합니다(다른 게임의 음색/설정이 남아 소리가 다르게 들릴 때). 마스터 볼륨은 노브 값으로 다시 맞춥니다.">
+                    <TextBlock Text="RESET" Style="{StaticResource PanelButtonText}"/>
+                </Border>
+            </StackPanel>
+        </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

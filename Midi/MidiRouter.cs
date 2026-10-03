@@ -1,0 +1,225 @@
+﻿using System;
+using System.Collections.Generic;
+using SPWare.VirtualSoundCanvas.Engines;
+
+namespace SPWare.VirtualSoundCanvas.Midi
+{
+    /// <summary>전역(장치 전체) SysEx를 어느 엔진에 보낼지 정하는 정책.</summary>
+    public enum GlobalSysExPolicy
+    {
+        /// <summary>현재 "활성" 엔진(사용자가 선택한 기본 엔진)에만 보낸다.</summary>
+        ActiveEngineOnly,
+        /// <summary>등록된 모든 엔진에 똑같이 방송한다.</summary>
+        BroadcastToAll,
+    }
+
+    /// <summary>
+    /// 가상 MIDI 입력 하나를 받아, 채널 단위로 서로 다른 ISynthEngine에
+    /// 분배하는 라우터. MTS3/SC-88Pro 두 "인격"이 한 포트 안에 공존하는
+    /// 핵심 로직이 여기 있습니다.
+    /// </summary>
+    public class MidiRouter
+    {
+        // MIDI 스레드는 잠금 없이 읽고, 배정을 바꿀 때는 통째로 교체(복사 후 교체)한다.
+        // 자동 감지가 MIDI 스레드에서 배정을 바꾸고, 화면(UI 스레드)에서도 바꾸기 때문에
+        // 예전처럼 Dictionary 하나를 두 스레드가 동시에 만지면 안 된다.
+        private volatile Dictionary<int, ISynthEngine> _channelMap = new();
+        private readonly object _mapLock = new();
+        private readonly List<ISynthEngine> _engines = new();
+
+        public ISynthEngine? ActiveEngine { get; set; }
+        public GlobalSysExPolicy GlobalPolicy { get; set; } = GlobalSysExPolicy.ActiveEngineOnly;
+
+        /// <summary>채널(0-15)에 노트온이 들어올 때마다 (채널, velocity/127, 그 노트가 실제로 가는 엔진) 로 발생 - 레벨 미터 등에 사용.
+        /// 패널은 자기 엔진의 이벤트만 걸러서 표시해야 합니다(다른 엔진으로 가는 노트에는 반응하면 안 됨).</summary>
+        public event EventHandler<(int channel, double level, ISynthEngine engine)>? ChannelActivity;
+
+        /// <summary>채널별로 지나가는 Level/Pan/Reverb/Chorus/Program 값이 바뀔 때마다 발생 - SC-88Pro류 정보 패널에 사용.</summary>
+        public event EventHandler<int>? ChannelStateChanged; // 인자: 바뀐 채널 번호
+
+        public readonly struct ChannelState
+        {
+            public int Program { get; init; }
+            public int BankMsb { get; init; } // CC0, SC-88Pro에서는 이 값이 "배리에이션 번호" 역할
+            public int Level { get; init; }   // CC7,  기본 100
+            public int Pan { get; init; }     // CC10, 기본 64(중앙)
+            public int Reverb { get; init; }  // CC91, 기본 40
+            public int Chorus { get; init; }  // CC93, 기본 0
+        }
+
+        private readonly ChannelState[] _channelStates = CreateDefaultStates();
+
+        private static ChannelState[] CreateDefaultStates()
+        {
+            var arr = new ChannelState[16];
+            for (int i = 0; i < 16; i++)
+                arr[i] = new ChannelState { Program = 0, Level = 100, Pan = 64, Reverb = 40, Chorus = 0 };
+            return arr;
+        }
+
+        /// <summary>채널(0-15)의 마지막으로 관측된 Level/Pan/Reverb/Chorus/Program 값.</summary>
+        public ChannelState GetChannelState(int channel) =>
+            channel is >= 0 and < 16 ? _channelStates[channel] : _channelStates[0];
+
+        public void RegisterEngine(ISynthEngine engine) => _engines.Add(engine);
+
+        /// <summary>특정 채널(0-15)을 특정 엔진에 고정 배정.</summary>
+        public void AssignChannel(int channel, ISynthEngine engine)
+        {
+            lock (_mapLock)
+            {
+                var copy = new Dictionary<int, ISynthEngine>(_channelMap) { [channel] = engine };
+                _channelMap = copy;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // MIDI 종류(프리셋) + 자동 감지
+        // ---------------------------------------------------------------
+
+        /// <summary>종류 -> 엔진 대응. MainWindow가 채워 준다(Mt32 -> MTS3, GmGs -> MTS5, Sc88 -> 외부 전달).</summary>
+        public Func<MidiKind, ISynthEngine?>? KindToEngine { get; set; }
+
+        /// <summary>지금 적용된 종류. Custom이면 사용자가 배정을 직접 관리 중.</summary>
+        public MidiKind CurrentKind { get; private set; } = MidiKind.Custom;
+
+        /// <summary>true면 들어오는 SysEx(GM On, GS Reset, MTS3 SysEx)로 종류를 알아채서 자동으로 바꾼다.</summary>
+        public bool AutoDetectKind { get; set; }
+
+        /// <summary>종류가 적용될 때마다 발생. 자동 감지면 MIDI 스레드에서 올 수 있으니 UI는 Dispatcher로 넘겨서 쓸 것.</summary>
+        public event EventHandler<(MidiKind kind, bool automatic)>? KindChanged;
+
+        /// <summary>
+        /// 종류를 적용한다: 개별 채널 배정을 모두 풀고, 기본 엔진을 그 종류의 엔진으로 바꾼다.
+        /// 바꾸기 전에 다른 엔진에서 울리던 소리는 끈다(새 엔진이 노트 오프를 받아 줄 수 없어서 걸려 버리기 때문).
+        /// </summary>
+        public void ApplyKind(MidiKind kind, bool automatic)
+        {
+            var target = KindToEngine?.Invoke(kind);
+            if (kind == MidiKind.Custom || target is null)
+            {
+                MarkCustom();
+                return;
+            }
+
+            var previous = new HashSet<ISynthEngine>();
+            lock (_mapLock)
+            {
+                foreach (var e in _channelMap.Values) previous.Add(e);
+                if (ActiveEngine is not null) previous.Add(ActiveEngine);
+                _channelMap = new Dictionary<int, ISynthEngine>();
+                ActiveEngine = target;
+                CurrentKind = kind;
+            }
+
+            foreach (var e in previous)
+            {
+                if (ReferenceEquals(e, target)) continue;
+                try
+                {
+                    for (int ch = 0; ch < 16; ch++)
+                    {
+                        e.ControlChange(ch, 120, 0); // All Sound Off
+                        e.ControlChange(ch, 123, 0); // All Notes Off
+                    }
+                }
+                catch { /* 소리 끄기에 실패해도 배정 변경은 계속 */ }
+            }
+
+            KindChanged?.Invoke(this, (kind, automatic));
+        }
+
+        /// <summary>사용자가 배정/기본 엔진을 손으로 바꿨다는 표시. 라우팅은 건드리지 않고, 이후 자동 감지가 다시 켜질 수 있게만 한다.</summary>
+        public void MarkCustom() => CurrentKind = MidiKind.Custom;
+
+        public IReadOnlyList<ISynthEngine> Engines => _engines;
+
+        private void UpdateStateFromCC(int channel, int controller, int value)
+        {
+            var s = _channelStates[channel];
+            ChannelState next = controller switch
+            {
+                0 => s with { BankMsb = value },
+                7 => s with { Level = value },
+                10 => s with { Pan = value },
+                91 => s with { Reverb = value },
+                93 => s with { Chorus = value },
+                _ => s,
+            };
+            if (controller is 0 or 7 or 10 or 91 or 93)
+            {
+                _channelStates[channel] = next;
+                ChannelStateChanged?.Invoke(this, channel);
+            }
+        }
+
+        /// <summary>WinMM 등에서 들어온 짧은 MIDI 메시지(3바이트 이하) 처리.</summary>
+        public void HandleShortMessage(byte status, byte data1, byte data2)
+        {
+            var channel = status & 0x0F;
+            if (!_channelMap.TryGetValue(channel, out var engine))
+                engine = ActiveEngine; // 배정 안 된 채널은 활성 엔진으로
+
+            if (engine is null) return;
+
+            var msg = MidiMessage.Parse(status, data1, data2);
+            switch (msg.Type)
+            {
+                case MidiMessageType.NoteOn:
+                    engine.NoteOn(msg.Channel, msg.Data1, msg.Data2);
+                    ChannelActivity?.Invoke(this, (msg.Channel, msg.Data2 / 127.0, engine));
+                    break;
+                case MidiMessageType.NoteOff:
+                    engine.NoteOff(msg.Channel, msg.Data1, msg.Data2); break;
+                case MidiMessageType.ControlChange:
+                    engine.ControlChange(msg.Channel, msg.Data1, msg.Data2);
+                    UpdateStateFromCC(msg.Channel, msg.Data1, msg.Data2);
+                    break;
+                case MidiMessageType.ProgramChange:
+                    engine.ProgramChange(msg.Channel, msg.Data1);
+                    _channelStates[msg.Channel] = _channelStates[msg.Channel] with { Program = msg.Data1 };
+                    ChannelStateChanged?.Invoke(this, msg.Channel);
+                    break;
+                case MidiMessageType.PitchBend:
+                    engine.PitchBend(msg.Channel, msg.Data1); break;
+            }
+        }
+
+        /// <summary>
+        /// SysEx 전체 바이트열 처리. 채널 정보가 없는 "장치 전체" 메시지이므로
+        /// GlobalPolicy와 장치조회(Device Inquiry, F0 7E .. F7) 여부에 따라
+        /// 분배 방식이 달라집니다.
+        /// </summary>
+        public void HandleSysEx(ReadOnlySpan<byte> data)
+        {
+            // 종류 자동 감지: 이 SysEx가 다른 종류를 알려 주면 배정을 먼저 바꾸고, 이 메시지도 새 엔진이 받게 한다.
+            if (AutoDetectKind)
+            {
+                var detected = MidiKindDetector.Detect(data);
+                if (detected != MidiKind.Custom && detected != CurrentKind)
+                    ApplyKind(detected, automatic: true);
+            }
+
+            bool isDeviceInquiry = data.Length >= 2 && data[0] == 0xF0 && data[1] == 0x7E;
+
+            if (isDeviceInquiry)
+            {
+                // 장치 조회는 "누가 나인지" 응답하는 메시지라 두 엔진 모두에게
+                // 뿌리면 응답이 두 번 오는 등 충돌이 나기 쉽습니다.
+                // 활성 엔진이 직접 응답 가능하면 그쪽에만 보냅니다.
+                if (ActiveEngine is { HandlesDeviceInquiry: true })
+                    ActiveEngine.SysEx(data);
+                return;
+            }
+
+            if (GlobalPolicy == GlobalSysExPolicy.BroadcastToAll)
+            {
+                foreach (var e in _engines) e.SysEx(data);
+            }
+            else
+            {
+                ActiveEngine?.SysEx(data);
+            }
+        }
+    }
+}

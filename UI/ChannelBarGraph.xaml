@@ -1,0 +1,20 @@
+<UserControl x:Class="SPWare.VirtualSoundCanvas.UI.ChannelBarGraph"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="420" d:DesignHeight="110">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 16채널 도트 매트릭스 막대가 그려지는 캔버스 -->
+        <Canvas x:Name="MeterCanvas" Grid.Row="0" Background="Transparent" ClipToBounds="True"/>
+
+        <!-- 채널 번호 1-16 -->
+        <Grid x:Name="ChannelLabels" Grid.Row="1" Margin="0,3,0,0"/>
+    </Grid>
+</UserControl>

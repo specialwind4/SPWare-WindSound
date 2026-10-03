@@ -1,0 +1,311 @@
+﻿<UserControl x:Class="SPWare.VirtualSoundCanvas.UI.Sc55Display"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:SPWare.VirtualSoundCanvas.UI"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="480" d:DesignHeight="230">
+
+    <!-- MTS5 앞판: 실기 사진/매뉴얼처럼 어두운 청회색 케이스. 왼쪽 POWER/VOLUME/MIDI IN 2/PHONES,
+         가운데 검은 베젤의 주황 LCD, 오른쪽 ALL/MUTE와 화살표 버튼 8쌍(PART ... MIDI CH). 조작부는 모양만 있다. -->
+    <Border CornerRadius="5" Padding="10,8,10,10" BorderThickness="1">
+        <Border.Resources>
+            <!-- LCD 안쪽 라벨(LEVEL, PAN ...): 주황 바탕 위의 진한 갈색 -->
+            <Style x:Key="LcdLabel" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#3A1C00"/>
+                <Setter Property="FontFamily" Value="Bahnschrift"/>
+                <Setter Property="FontSize" Value="9"/>
+            </Style>
+            <!-- LCD 안쪽 값(도트) -->
+            <Style x:Key="LcdValue" TargetType="ui:DotMatrixLcd">
+                <Setter Property="Columns" Value="3"/>
+                <Setter Property="DotAspect" Value="1.2"/>
+                <Setter Property="Width" Value="38"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="OnBrush" Value="#3A1C00"/>
+                <Setter Property="OffBrush" Value="#1EA05000"/>
+                <Setter Property="HaloBrush" Value="{x:Null}"/>
+            </Style>
+            <!-- 케이스 위 인쇄 문구 -->
+            <Style x:Key="Silk" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#D6D7DC"/>
+                <Setter Property="FontFamily" Value="Bahnschrift"/>
+                <Setter Property="FontSize" Value="10.5"/>
+            </Style>
+            <Style x:Key="SilkSmall" TargetType="TextBlock" BasedOn="{StaticResource Silk}">
+                <Setter Property="FontSize" Value="8.5"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+            </Style>
+            <Style x:Key="ArrowHalf" TargetType="Border">
+                <Setter Property="Background" Value="#0E0E10"/>
+                <Setter Property="BorderBrush" Value="#4A4B51"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Height" Value="11"/>
+            </Style>
+            <!-- 화살표 버튼 한 쌍(◀ ▶) + 위 라벨 -->
+            <DataTemplate x:Key="ArrowPair">
+                <StackPanel Margin="2,0,2,5">
+                    <TextBlock Text="{Binding}" Style="{StaticResource SilkSmall}"/>
+                    <Grid Width="52" Margin="0,1,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource ArrowHalf}" CornerRadius="2,0,0,2" Tag="L" Cursor="Hand" ToolTip="클릭: 누르기 / Shift+클릭: ◀ ▶ 동시에 / 오른쪽 클릭: 눌린 채로 고정(다시 오른쪽 클릭하면 해제)"
+                                MouseLeftButtonDown="OnPanelButtonDown" MouseLeftButtonUp="OnPanelButtonUp"
+                                MouseRightButtonDown="OnPanelButtonLatch" LostMouseCapture="OnPanelButtonLost">
+                            <TextBlock Text="&#x25C0;" FontFamily="Segoe UI Symbol" FontSize="5.5" Foreground="#C8C9CF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource ArrowHalf}" CornerRadius="0,2,2,0" BorderThickness="0,1,1,1" Tag="R" Cursor="Hand" ToolTip="클릭: 누르기 / Shift+클릭: ◀ ▶ 동시에 / 오른쪽 클릭: 눌린 채로 고정(다시 오른쪽 클릭하면 해제)"
+                                MouseLeftButtonDown="OnPanelButtonDown" MouseLeftButtonUp="OnPanelButtonUp"
+                                MouseRightButtonDown="OnPanelButtonLatch" LostMouseCapture="OnPanelButtonLost">
+                            <TextBlock Text="&#x25B6;" FontFamily="Segoe UI Symbol" FontSize="5.5" Foreground="#C8C9CF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </DataTemplate>
+        </Border.Resources>
+        <Border.BorderBrush>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#6C707A" Offset="0"/>
+                <GradientStop Color="#17181B" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.BorderBrush>
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#42454D" Offset="0"/>
+                <GradientStop Color="#2A2C32" Offset="0.5"/>
+                <GradientStop Color="#1D1E22" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 왼쪽 조작부: POWER(STANDBY) / VOLUME / MIDI IN 2 / PHONES -->
+            <StackPanel Grid.Column="0" Width="68" Margin="0,0,8,0" VerticalAlignment="Center">
+                <TextBlock Text="POWER" Style="{StaticResource Silk}" HorizontalAlignment="Center"/>
+                <Border Width="40" Height="12" CornerRadius="3" Background="#0E0E10" BorderBrush="#45464C"
+                        BorderThickness="1" Margin="0,2,0,1" Tag="POWER" Cursor="Hand" ToolTip="클릭: 전원 켜기/끄기(대기)"
+                        MouseLeftButtonDown="OnPanelButtonDown" MouseLeftButtonUp="OnPanelButtonUp"
+                        MouseRightButtonDown="OnPanelButtonLatch" LostMouseCapture="OnPanelButtonLost"/>
+                <TextBlock Text="STANDBY" Style="{StaticResource SilkSmall}" Margin="0,0,0,6"/>
+                <TextBlock Text="VOLUME" Style="{StaticResource Silk}" HorizontalAlignment="Center"/>
+                <Grid x:Name="VolumeKnob" Width="34" Height="34" Margin="0,2,0,6" HorizontalAlignment="Center"
+                      Background="Transparent" 
+                      MouseLeftButtonDown="OnKnobDown" MouseMove="OnKnobMove" MouseLeftButtonUp="OnKnobUp"
+                      MouseWheel="OnKnobWheel">
+                    <Ellipse>
+                        <Ellipse.Fill>
+                            <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                <GradientStop Color="#55565C" Offset="0"/>
+                                <GradientStop Color="#1B1C1F" Offset="0.7"/>
+                                <GradientStop Color="#08080A" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <Rectangle Width="2" Height="9" Fill="#D6D7DC" VerticalAlignment="Top" Margin="0,3,0,0"
+                               RenderTransformOrigin="0.5,1.8">
+                        <Rectangle.RenderTransform>
+                            <RotateTransform x:Name="VolumeRotate" Angle="135"/>
+                        </Rectangle.RenderTransform>
+                    </Rectangle>
+                </Grid>
+                <Grid Width="34" Height="34" HorizontalAlignment="Center">
+                    <Ellipse Fill="#0A0A0C" Stroke="#4A4B51" StrokeThickness="2"/>
+                    <Ellipse Width="5" Height="5" Fill="#3A3A40" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,5,0,0"/>
+                    <Ellipse Width="5" Height="5" Fill="#3A3A40" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                    <Ellipse Width="5" Height="5" Fill="#3A3A40" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                </Grid>
+                <TextBlock Text="MIDI IN 2" Style="{StaticResource Silk}" HorizontalAlignment="Center" Margin="0,1,0,4"/>
+                <Ellipse Width="14" Height="14" Fill="#0A0A0C" Stroke="#4A4B51" StrokeThickness="1.5"/>
+                <TextBlock Text="PHONES" Style="{StaticResource Silk}" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+            </StackPanel>
+
+            <!-- 가운데: 위 인쇄 / LCD / 아래 인쇄 -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 상단 인쇄: PART / INSTRUMENT (LCD 첫 칸들 위) ............ SPWare -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <!-- 실기 사진에서 잰 위치(LCD 폭 대비): PART는 왼쪽에서 약 5.5%(LEVEL/REVERB/K SHIFT 글자보다 살짝 왼쪽, 실기 이미지 20), INSTRUMENT는 약 22% 지점에서 시작 -->
+                    <Grid Margin="0,0,0,2" VerticalAlignment="Bottom">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="0.055*"/>
+                            <ColumnDefinition Width="0.083*"/>
+                            <ColumnDefinition Width="0.08*"/>
+                            <ColumnDefinition Width="0.782*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="1" Text="PART" Style="{StaticResource Silk}"/>
+                        <TextBlock Grid.Column="3" Text="INSTRUMENT" Style="{StaticResource Silk}"/>
+                    </Grid>
+                    <TextBlock Text="SPWare" FontFamily="Arial Rounded MT Bold, Segoe UI" FontSize="22"
+                               Foreground="#7E808A" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                               Margin="0,0,2,0"/>
+                </Grid>
+
+                <!-- LCD: 검은 베젤 안에 주황 백라이트 -->
+                <Border Grid.Row="1" Background="#0B0B0D" CornerRadius="3" Padding="5,5,5,3">
+                    <Border x:Name="LcdSurface" CornerRadius="2" Padding="8,8,8,6">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#FFB324" Offset="0"/>
+                                <GradientStop Color="#FCA51C" Offset="0.5"/>
+                                <GradientStop Color="#F19314" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+
+                        <Grid>
+                        <!-- 실제 LCD 화면이 준비되기 전(또는 옛 DLL)에는 아래의 MIDI 추정 화면을 보여준다 -->
+                        <Grid x:Name="FallbackLcd">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="104"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 상단: 파트 번호(2자리) + 악기 번호(3자리) + 악기 이름. 매뉴얼의 전원 투입 화면은 '01 001 Piano 1' -->
+                            <ui:DotMatrixLcd x:Name="BannerText" Grid.Row="0" Grid.ColumnSpan="2"
+                                             Columns="28" DotAspect="1.35" Margin="0,0,0,6"
+                                             OnBrush="#3A1C00" OffBrush="#1EA05000" HaloBrush="{x:Null}"
+                                             Text="01 001 Piano 1"/>
+
+                            <!-- 좌측: 실기와 동일한 파라미터 라벨 6종, 값은 도트 -->
+                            <Grid Grid.Row="1" Grid.Column="0" Margin="0,0,6,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Text="LEVEL" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="LevelText" Style="{StaticResource LcdValue}" Text="100"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1">
+                                    <TextBlock Text="PAN" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="PanText" Style="{StaticResource LcdValue}" Text="0"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0">
+                                    <TextBlock Text="REVERB" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="ReverbText" Style="{StaticResource LcdValue}" Text="40"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1">
+                                    <TextBlock Text="CHORUS" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="ChorusText" Style="{StaticResource LcdValue}" Text="0"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0">
+                                    <TextBlock Text="K SHIFT" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="KeyShiftText" Style="{StaticResource LcdValue}" Text="0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="1">
+                                    <TextBlock Text="MIDI CH" Style="{StaticResource LcdLabel}"/>
+                                    <ui:DotMatrixLcd x:Name="MidiChText" Style="{StaticResource LcdValue}" Text="01"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- 우측: 16채널 바 인디케이터. 좌/우 채널 표시도 실기와 동일하게 -->
+                            <Grid Grid.Row="1" Grid.Column="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0" Margin="0,0,0,14">
+                                    <TextBlock Text="L" Style="{StaticResource LcdLabel}" FontWeight="Bold" VerticalAlignment="Top"/>
+                                    <TextBlock Text="R" Style="{StaticResource LcdLabel}" FontWeight="Bold" VerticalAlignment="Bottom"/>
+                                </Grid>
+                                <ui:ChannelBarGraph x:Name="Bars" Grid.Column="1"/>
+                            </Grid>
+                        </Grid>
+
+                        <!-- 에뮬레이터가 그린 진짜 LCD 화면(741x268). 첫 프레임이 오면 위 화면을 대신한다 -->
+                        <Image x:Name="LcdImage" Visibility="Collapsed" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="Fant" SnapsToDevicePixels="True"/>
+                        </Grid>
+                    </Border>
+                </Border>
+
+                <!-- 하단 인쇄: Wind Sound ............ PART ............ MTS5 -->
+                <Grid Grid.Row="2" Margin="2,6,2,0">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                        <TextBlock Text="Wind" FontFamily="Bahnschrift Light" FontSize="15"
+                                   Foreground="#A3A5AE" VerticalAlignment="Bottom" Margin="0,0,3,2">
+                            <TextBlock.LayoutTransform>
+                                <ScaleTransform ScaleX="1.1" ScaleY="1"/>
+                            </TextBlock.LayoutTransform>
+                        </TextBlock>
+                        <TextBlock Text="Sound" FontFamily="Arial Black" FontStyle="Italic" FontSize="21"
+                                   Foreground="#9C9EA7" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <TextBlock Text="PART" Style="{StaticResource Silk}" FontSize="10"
+                               HorizontalAlignment="Center" VerticalAlignment="Top" Margin="70,0,0,0"/>
+                    <TextBlock Text="MTS5" FontFamily="Bahnschrift" FontWeight="SemiBold" FontStyle="Italic" FontSize="18"
+                               Foreground="#D08A5C" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                        <TextBlock.LayoutTransform>
+                            <ScaleTransform ScaleX="1.12" ScaleY="1"/>
+                        </TextBlock.LayoutTransform>
+                    </TextBlock>
+                </Grid>
+            </Grid>
+
+            <!-- 오른쪽 조작부: ALL / MUTE 와 화살표 버튼 8쌍 (모양만, 동작 없음) -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
+                <StackPanel Margin="0,0,4,0" VerticalAlignment="Center">
+                    <TextBlock Text="ALL" Style="{StaticResource Silk}" HorizontalAlignment="Center"/>
+                    <Ellipse Width="18" Height="18" Margin="0,2,0,8" Tag="ALL" Cursor="Hand" ToolTip="클릭: 누르기 / Shift+클릭: ◀ ▶ 동시에 / 오른쪽 클릭: 눌린 채로 고정(다시 오른쪽 클릭하면 해제)"
+                             MouseLeftButtonDown="OnPanelButtonDown" MouseLeftButtonUp="OnPanelButtonUp"
+                             MouseRightButtonDown="OnPanelButtonLatch" LostMouseCapture="OnPanelButtonLost">
+                        <Ellipse.Fill>
+                            <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                <GradientStop Color="#8C8D93" Offset="0"/>
+                                <GradientStop Color="#3B3C41" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <TextBlock Text="MUTE" Style="{StaticResource Silk}" HorizontalAlignment="Center"/>
+                    <Ellipse Width="18" Height="18" Margin="0,2,0,0" Tag="MUTE" Cursor="Hand" ToolTip="클릭: 누르기 / Shift+클릭: ◀ ▶ 동시에 / 오른쪽 클릭: 눌린 채로 고정(다시 오른쪽 클릭하면 해제)"
+                             MouseLeftButtonDown="OnPanelButtonDown" MouseLeftButtonUp="OnPanelButtonUp"
+                             MouseRightButtonDown="OnPanelButtonLatch" LostMouseCapture="OnPanelButtonLost">
+                        <Ellipse.Fill>
+                            <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                <GradientStop Color="#8C8D93" Offset="0"/>
+                                <GradientStop Color="#3B3C41" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </StackPanel>
+                <UniformGrid Columns="2" Rows="4" VerticalAlignment="Center">
+                    <ContentControl Content="PART" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="INSTRUMENT" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="LEVEL" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="PAN" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="REVERB" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="CHORUS" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="KEY SHIFT" ContentTemplate="{StaticResource ArrowPair}"/>
+                    <ContentControl Content="MIDI CH" ContentTemplate="{StaticResource ArrowPair}"/>
+                </UniformGrid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
