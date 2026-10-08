@@ -11,8 +11,8 @@
 
     <!-- 아이콘 및 버전 정보: exe/작업표시줄/속성창에 그대로 반영됩니다 -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <FileVersion>1.0.1.0</FileVersion>
     <Product>SPWare Wind Sound</Product>
     <Company>SPWare (Special Wind Software)</Company>
     <Copyright>Copyright © SPWare (Special Wind Software)</Copyright>

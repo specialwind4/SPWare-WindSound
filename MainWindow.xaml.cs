@@ -805,24 +805,50 @@ namespace SPWare.VirtualSoundCanvas
             }
         }
 
+        private bool _cleanedUp;
+
+        /// <summary>
+        /// 닫히는 중(취소되지 않았을 때)에 설정 저장과 엔진 정리를 끝낸다. WPF가 창을 닫은 뒤 내부 종료 처리에서 예외를 던지면
+        /// OnClosed가 실행되지 않아 설정 저장과 SC-55 백업 저장이 빠질 수 있어서, 그 영향을 받지 않는 Closing 단계에서 한다.
+        /// </summary>
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            base.OnClosing(e);
+            if (!e.Cancel) ShutdownCleanup();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
-            // 설정 저장 (실패해도 종료는 진행)
-            SaveWindowSize();
-            _settings.Mt32MasterVolume = Mt32Panel.MasterVolume;
-            int contrast = _sc55.GetLcdContrast();
-            if (contrast >= 1) _settings.Sc55LcdContrast = contrast; // 펌웨어 메뉴에서 맞춘 LCD 대비 기억
-            CaptureUiToSettings();
-            _settings.Save();
+            ShutdownCleanup();   // 이미 했으면 건너뛴다
+            base.OnClosed(e);
+        }
+
+        private void ShutdownCleanup()
+        {
+            if (_cleanedUp) return;
+            _cleanedUp = true;
+            App.ShuttingDown = true;
+
+            // 각 단계가 서로의 실패에 막히지 않게 따로 감싼다(설정 저장이 실패해도 엔진 정리는 해야 한다).
+            try
+            {
+                SaveWindowSize();
+                _settings.Mt32MasterVolume = Mt32Panel.MasterVolume;
+                int contrast = _sc55.GetLcdContrast();
+                if (contrast >= 1) _settings.Sc55LcdContrast = contrast; // 펌웨어 메뉴에서 맞춘 LCD 대비 기억
+                CaptureUiToSettings();
+                _settings.Save();
+            }
+            catch { /* 설정 저장 실패 - 종료는 계속 */ }
 
             // 열어둔 네이티브 자원(MIDI 핸들, 오디오 출력, 엔진 컨텍스트)을 정리합니다.
-            _displayPollTimer.Stop();
-            _audioOutput?.Stop();
-            _audioOutput?.Dispose();
-            _midiIn?.Dispose();
-            _mt32.Dispose();
-            _sc55.Dispose();
-            base.OnClosed(e);
+            try { _displayPollTimer.Stop(); } catch { }
+            try { _midiIn?.Dispose(); } catch { }        // 새 MIDI가 엔진으로 들어가지 않게 먼저 끊는다
+            try { _mixer.Stop(); } catch { }             // 진행 중인 렌더가 끝나길 기다리고 이후는 무음
+            try { _audioOutput?.Stop(); } catch { }
+            try { _audioOutput?.Dispose(); } catch { }
+            try { _mt32.Dispose(); } catch { }
+            try { _sc55.Dispose(); } catch { }           // 백업 SRAM(memory.bin0)을 여기서 저장한다
         }
 
         private void Log(string message) => LogList.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {Loc.T(message)}");

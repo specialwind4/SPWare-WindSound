@@ -19,6 +19,9 @@ namespace SPWare.VirtualSoundCanvas
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "SPWare", "WindSound", "crash.log");
 
+        /// <summary>메인 창이 닫히기 시작했다(설정 저장/엔진 정리 이후 단계). 이 뒤의 UI 예외는 종료 처리 중에 난 것이다.</summary>
+        public static volatile bool ShuttingDown;
+
         // ---- 중복 실행 방지 ----
         // 같은 프로그램을 두 번 띄우면 가상 MIDI 포트와 오디오 장치, 설정 파일을 서로 뺏고 소리가 겹친다.
         // 이름 있는 뮤텍스로 이미 실행 중인지 확인해서, 두 번째 실행은 첫 번째 창을 앞으로 가져오고 바로 끝낸다.
@@ -62,6 +65,15 @@ namespace SPWare.VirtualSoundCanvas
             // UI 스레드에서 터진 예외
             DispatcherUnhandledException += (_, args) =>
             {
+                if (ShuttingDown)
+                {
+                    // 종료 중에 WPF 내부에서 난 예외. 설정 저장과 엔진 정리는 이미 끝났으므로 오류창 없이 기록만 남기고 바로 끝낸다
+                    // (예외를 삼키면 창 없는 프로세스만 남는다).
+                    WriteCrash("UI 스레드 - 종료 중(무시)", args.Exception);
+                    args.Handled = true;
+                    Environment.Exit(0);
+                    return;
+                }
                 WriteCrash("UI 스레드", args.Exception);
                 MessageBox.Show(
                     SPWare.VirtualSoundCanvas.Localization.Loc.T($"오류가 발생했습니다.\n\n{args.Exception.Message}\n\n자세한 내용:\n{CrashLogPath}"),

@@ -42,6 +42,11 @@ Roland and its product names are trademarks of Roland Corporation. This project 
 
 The UI is available in English and Korean (Settings → Language). *Auto* follows your Windows language.
 
+## Changes
+
+* **1.0.1** – Fixed a crash that could happen when closing the program (use-after-free in the MT-32 wrapper's `mt32_destroy`). Settings and the SC-55 backup are now saved before shutdown even if the framework fails while closing.
+* **1.0.0** – First release.
+
 ---
 
 ## 한국어
@@ -62,3 +67,8 @@ The UI is available in English and Korean (Settings → Language). *Auto* follow
 * 화면 언어는 설정 → Language / 언어 에서 바꿀 수 있습니다(Auto = 윈도 언어).
 
 Copyright (c) SPWare (Special Wind Software)
+
+## 변경 사항
+
+* **1.0.1** – 프로그램을 끌 때 비정상 종료될 수 있던 문제를 고쳤습니다(MT-32 래퍼 `mt32_destroy`의 해제 후 사용). 프레임워크가 종료 중 오류를 내도 설정과 SC-55 백업이 먼저 저장됩니다.
+* **1.0.0** – 첫 릴리스.

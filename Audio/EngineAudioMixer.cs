@@ -81,7 +81,31 @@ namespace SPWare.VirtualSoundCanvas.Audio
         }
 
         /// <summary>NAudio가 오디오 디바이스 버퍼를 채울 때마다 호출합니다.</summary>
+        // 종료 때 엔진을 해제하기 전에 오디오 스레드가 엔진을 렌더링 중이면 안 된다. Stop()은 진행 중인 Read가 끝나길 기다린 뒤
+        // 이후의 Read는 무음만 돌려준다.
+        private readonly object _readLock = new();
+        private volatile bool _stopped;
+
+        public void Stop()
+        {
+            _stopped = true;
+            lock (_readLock) { }   // 진행 중인 Read가 끝날 때까지 기다린다
+        }
+
         public int Read(float[] buffer, int offset, int count)
+        {
+            lock (_readLock)
+            {
+                if (_stopped)
+                {
+                    for (int i = 0; i < count; i++) buffer[offset + i] = 0f;
+                    return count;
+                }
+                return ReadLocked(buffer, offset, count);
+            }
+        }
+
+        private int ReadLocked(float[] buffer, int offset, int count)
         {
             // 주의: NAudio의 SampleToWaveProvider는 byte[]를 float[]처럼 위장한 버퍼(WaveBuffer)를 넘겨줍니다.
             // 이런 버퍼에는 Array.Clear/Array.Copy를 쓰면 실제 원소 크기(1바이트)로 동작해서
