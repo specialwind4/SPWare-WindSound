@@ -94,7 +94,11 @@ namespace SPWare.VirtualSoundCanvas
             DefaultEngineCombo.SelectionChanged += (_, _) =>
             {
                 int i = Math.Max(DefaultEngineCombo.SelectedIndex, 0);
-                _router.ActiveEngine = EngineByIndex(i);
+                var previousEngine = _router.ActiveEngine;
+                var newEngine = EngineByIndex(i);
+                _router.ActiveEngine = newEngine;
+                // 재생 도중 사용자가 기본 엔진을 바꾸면 새 엔진이 곡의 설정(SysEx, 음색/음량/이펙트)을 이어받게 한다
+                if (_uiReady && !_applyingKind && !ReferenceEquals(previousEngine, newEngine)) _router.ReplayStateTo(newEngine);
                 if (_uiReady) _settings.DefaultEngineIndex = i;
                 if (_uiReady && !_applyingKind) MarkCustomFromUi();
             };

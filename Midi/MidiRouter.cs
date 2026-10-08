@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using SPWare.VirtualSoundCanvas.Engines;
 
 namespace SPWare.VirtualSoundCanvas.Midi
@@ -49,6 +50,86 @@ namespace SPWare.VirtualSoundCanvas.Midi
 
         private readonly ChannelState[] _channelStates = CreateDefaultStates();
 
+        // ---- 재생 중 엔진을 바꿀 때 새 엔진에 현재 곡의 설정을 다시 넣어 주기 위한 기록 ----
+        // 곡의 초기 설정(SysEx, 음색/음량/팬/이펙트 값)은 곡 맨 앞에서 한 번만 오기 때문에, 재생 도중 MIDI 종류나 기본 엔진을 바꾸면
+        // 새 엔진은 그걸 못 받아서 기본 음색(피아노)/기본 음량으로 울린다(빠진 소리). 다음 곡은 설정을 다시 보내니 정상이다.
+        private readonly object _replayLock = new();
+        private readonly List<byte[]> _sysexJournal = new();
+        private int _sysexJournalBytes;
+        private const int SysexJournalMaxBytes = 256 * 1024;
+        private readonly short[,] _ccLast = NewUnset(16, 128);
+        private readonly short[] _programLast = NewUnset(16);
+        private readonly short[] _bendLast = NewUnset(16);
+        private static readonly int[] ReplayControllers = { 0, 32, 7, 10, 11, 71, 72, 73, 74, 91, 93 };
+
+        private static short[] NewUnset(int n) { var a = new short[n]; Array.Fill(a, (short)-1); return a; }
+        private static short[,] NewUnset(int a, int b)
+        {
+            var m = new short[a, b];
+            for (int i = 0; i < a; i++) for (int j = 0; j < b; j++) m[i, j] = -1;
+            return m;
+        }
+
+        private void ResetReplayState()
+        {
+            lock (_replayLock)
+            {
+                _sysexJournal.Clear(); _sysexJournalBytes = 0;
+                for (int c = 0; c < 16; c++)
+                {
+                    for (int k = 0; k < 128; k++) _ccLast[c, k] = -1;
+                    _programLast[c] = -1; _bendLast[c] = -1;
+                }
+            }
+        }
+
+        private void Record(int channel, int controller, int value)
+        {
+            if (Array.IndexOf(ReplayControllers, controller) < 0) return;
+            lock (_replayLock) _ccLast[channel, controller] = (short)value;
+        }
+
+        /// <summary>
+        /// 지금까지 곡에서 받은 설정(SysEx 기록 + 채널별 음색/음량/팬/이펙트 값)을 한 엔진에 다시 보낸다.
+        /// MIDI 종류나 기본 엔진을 재생 도중에 손으로 바꿨을 때, 새 엔진이 곡의 설정을 이어받게 하려는 것이다.
+        /// 엔진 종류에 맞는 SysEx만 보낸다(SPE3 엔진에는 SPE3용, SPE5에는 GS/GM용).
+        /// </summary>
+        public void ReplayStateTo(ISynthEngine target) => ReplayStateTo(target, KindOf(target));
+
+        public void ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null)
+        {
+            List<byte[]> sx;
+            short[,] cc; short[] prog, bend;
+            lock (_replayLock)
+            {
+                sx = onlyChannel is null ? new List<byte[]>(_sysexJournal) : new List<byte[]>();
+                cc = (short[,])_ccLast.Clone(); prog = (short[])_programLast.Clone(); bend = (short[])_bendLast.Clone();
+            }
+            try
+            {
+                foreach (var d in sx)
+                {
+                    bool roland = d.Length > 3 && d[1] == 0x41;
+                    bool ok = kind == MidiKind.Mt32 ? roland && d[3] == 0x16
+                                                    : !roland || d[3] == 0x42;   // SPE5: 유니버설/GS만
+                    if (kind == MidiKind.Mt32 && !roland) ok = false;
+                    if (ok) target.SysEx(d);
+                }
+                for (int ch = 0; ch < 16; ch++)
+                {
+                    if (onlyChannel is int only && only != ch) continue;
+                    foreach (int k in ReplayControllers)           // 0, 32(뱅크) -> 프로그램 -> 나머지 순서
+                    {
+                        if (k is 0 or 32 && cc[ch, k] >= 0) target.ControlChange(ch, k, cc[ch, k]);
+                        if (k == 32 && prog[ch] >= 0) target.ProgramChange(ch, prog[ch]);
+                        if (k is not (0 or 32) && cc[ch, k] >= 0) target.ControlChange(ch, k, cc[ch, k]);
+                    }
+                    if (bend[ch] >= 0) target.PitchBend(ch, bend[ch]);
+                }
+            }
+            catch { /* 복원에 실패해도 라우팅 변경은 계속 */ }
+        }
+
         private static ChannelState[] CreateDefaultStates()
         {
             var arr = new ChannelState[16];
@@ -71,6 +152,14 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 var copy = new Dictionary<int, ISynthEngine>(_channelMap) { [channel] = engine };
                 _channelMap = copy;
             }
+            ReplayStateTo(engine, KindOf(engine), channel);
+        }
+
+        private MidiKind KindOf(ISynthEngine engine)
+        {
+            foreach (var k in new[] { MidiKind.Mt32, MidiKind.GmGs })
+                if (ReferenceEquals(KindToEngine?.Invoke(k), engine)) return k;
+            return MidiKind.GmGs;
         }
 
         // ---------------------------------------------------------------
@@ -126,6 +215,10 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 catch { /* 소리 끄기에 실패해도 배정 변경은 계속 */ }
             }
 
+            // 자동 감지는 곡이 시작될 때(초기화 신호) 일어나므로 곡이 설정을 다시 보낸다. 손으로 바꾼 경우만 이어받게 한다.
+            if (!automatic && previous.Any(e => !ReferenceEquals(e, target)))
+                ReplayStateTo(target, kind);
+
             KindChanged?.Invoke(this, (kind, automatic));
         }
 
@@ -174,14 +267,18 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 case MidiMessageType.ControlChange:
                     engine.ControlChange(msg.Channel, msg.Data1, msg.Data2);
                     UpdateStateFromCC(msg.Channel, msg.Data1, msg.Data2);
+                    Record(msg.Channel, msg.Data1, msg.Data2);
                     break;
                 case MidiMessageType.ProgramChange:
                     engine.ProgramChange(msg.Channel, msg.Data1);
                     _channelStates[msg.Channel] = _channelStates[msg.Channel] with { Program = msg.Data1 };
+                    lock (_replayLock) _programLast[msg.Channel] = (short)msg.Data1;
                     ChannelStateChanged?.Invoke(this, msg.Channel);
                     break;
                 case MidiMessageType.PitchBend:
-                    engine.PitchBend(msg.Channel, msg.Data1); break;
+                    engine.PitchBend(msg.Channel, msg.Data1);
+                    lock (_replayLock) _bendLast[msg.Channel] = (short)msg.Data1;
+                    break;
             }
         }
 
@@ -198,6 +295,21 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 var detected = MidiKindDetector.Detect(data);
                 if (detected != MidiKind.Custom && detected != CurrentKind)
                     ApplyKind(detected, automatic: true);
+            }
+
+            bool isIdentityRequest = data.Length >= 4 && data[0] == 0xF0 && data[1] == 0x7E && data[3] == 0x06;
+            if (!isIdentityRequest)
+            {
+                // 새 곡의 시작 신호(GM On / GS Reset / SPE3 초기화)면 이전 곡의 기록을 버리고 거기서부터 다시 모은다.
+                if (MidiKindDetector.IsSongStart(data)) ResetReplayState();
+                lock (_replayLock)
+                {
+                    if (_sysexJournalBytes + data.Length <= SysexJournalMaxBytes)
+                    {
+                        _sysexJournal.Add(data.ToArray());
+                        _sysexJournalBytes += data.Length;
+                    }
+                }
             }
 
             bool isDeviceInquiry = data.Length >= 2 && data[0] == 0xF0 && data[1] == 0x7E;

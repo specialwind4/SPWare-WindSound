@@ -47,6 +47,16 @@ namespace SPWare.VirtualSoundCanvas.Midi
             return MidiKind.Custom;
         }
 
+        /// <summary>새 곡이 시작됐다는 신호인가: GM System On / GM2 System On, GS Reset(40 00 7F 00), SPE3(MT-32) 전체 초기화(7F 00 00 00).</summary>
+        public static bool IsSongStart(ReadOnlySpan<byte> d)
+        {
+            if (d.Length < 6 || d[0] != 0xF0) return false;
+            if (d[1] == 0x7E && d[3] == 0x09 && (d[4] == 0x01 || d[4] == 0x03)) return true;
+            if (d[1] != 0x41 || d.Length < 10 || d[4] != 0x12) return false;
+            if (d[3] == 0x42) return d[5] == 0x40 && d[6] == 0x00 && d[7] == 0x7F && d[8] == 0x00;
+            return d[3] == 0x16 && d[5] == 0x7F && d[6] == 0x00 && d[7] == 0x00 && d[8] == 0x00;
+        }
+
         public static string Describe(MidiKind kind) => kind switch
         {
             MidiKind.Mt32 => "SPE3",

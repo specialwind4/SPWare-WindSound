@@ -44,6 +44,7 @@ The UI is available in English and Korean (Settings → Language). *Auto* follow
 
 ## Changes
 
+* **1.0.2** – Fixed the "missing sounds" when you change the MIDI type or the default engine (SPE3 ↔ SPE5) while a song is playing: the new engine now receives the song's current setup (instrument, volume, pan, effects). Auto-detected switches at the start of a song are unchanged.
 * **1.0.1** – Fixed a crash that could happen when closing the program (use-after-free in the MT-32 wrapper's `mt32_destroy`). Settings and the SC-55 backup are now saved before shutdown even if the framework fails while closing.
 * **1.0.0** – First release.
 
@@ -70,5 +71,6 @@ Copyright (c) SPWare (Special Wind Software)
 
 ## 변경 사항
 
+* **1.0.2** – 곡을 재생하는 도중에 MIDI 종류나 기본 엔진(SPE3 ↔ SPE5)을 바꾸면 소리가 빠지던 문제를 고쳤습니다. 새 엔진이 곡의 현재 설정(음색, 음량, 팬, 이펙트)을 이어받습니다. 곡이 시작될 때 자동으로 바뀌는 경우는 그대로입니다.
 * **1.0.1** – 프로그램을 끌 때 비정상 종료될 수 있던 문제를 고쳤습니다(MT-32 래퍼 `mt32_destroy`의 해제 후 사용). 프레임워크가 종료 중 오류를 내도 설정과 SC-55 백업이 먼저 저장됩니다.
 * **1.0.0** – 첫 릴리스.
