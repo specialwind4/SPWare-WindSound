@@ -110,6 +110,8 @@ namespace SPWare.VirtualSoundCanvas
                 MidiKind.GmGs => _sc55,
                 _ => null,
             };
+            // 지난번에 꺼질 때(또는 다른 버전 앱이 꺼질 때) 저장된 곡 설정을 불러온다. 엔진이 열리면 RestoreTo가 그 엔진에 보낸다.
+            try { var savedState = MidiStateStore.Load(); if (savedState != null) _router.ImportState(savedState, TimeSpan.FromHours(12)); } catch { }
             _router.KindChanged += (_, e) =>
                 Dispatcher.BeginInvoke(new Action(() => OnKindChanged(e.kind, e.automatic)));
             KindCombo.ItemsSource = new[]
@@ -130,6 +132,7 @@ namespace SPWare.VirtualSoundCanvas
             // (MIDI 메시지마다 읽지 않고 여기서 주기적으로만 읽는 게 핵심입니다.)
             _displayPollTimer.Tick += (_, _) =>
             {
+                if (++_stateSaveTick >= 30) { _stateSaveTick = 0; SaveMidiStateAsync(); }
                 _mt32.PollDisplayState();
                 _sc55.PollStatusText();
             };
@@ -593,6 +596,7 @@ namespace SPWare.VirtualSoundCanvas
                 _mt32.ControlRomPath = control;
                 _mt32.PcmRomPath = pcm;
                 _mt32.Open();
+                if (_router.RestoreTo(_mt32)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE3)");
                 _mt32.SetMasterVolume(_settings.Mt32MasterVolume);   // 지난번 노브 위치 복원(액정 Vol도 따라 바뀐다)
                 Mt32Panel.SetMasterVolume(_settings.Mt32MasterVolume);
                 Log($"SPE3 엔진 초기화 완료 ({_mt32.RomSet}) - {Mt32Engine.GetLastNativeMessage()}");
@@ -712,6 +716,7 @@ namespace SPWare.VirtualSoundCanvas
 
                 _sc55.RomDirectory = folder;
                 _sc55.Open();
+                if (_router.RestoreTo(_sc55)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE5)");
                 Log($"SPE5 엔진 초기화 완료 - {Sc55Engine.GetLastNativeMessage()}");
                 if (_settings.Sc55LcdContrast is >= 1 and <= 16)
                 {
@@ -809,6 +814,28 @@ namespace SPWare.VirtualSoundCanvas
             }
         }
 
+        private int _stateSaveTick;
+        private int _stateSaving;
+
+        /// <summary>곡 설정 기록이 바뀌었으면 파일에 저장한다(다른 앱/다음 실행이 이어받게). 꺼질 때는 이걸 동기로 부른다.</summary>
+        private void SaveMidiState()
+        {
+            if (!_router.StateDirty) return;
+            var data = _router.ExportState();
+            if (data != null) MidiStateStore.Save(data);
+        }
+
+        private void SaveMidiStateAsync()
+        {
+            if (!_router.StateDirty) return;
+            if (System.Threading.Interlocked.Exchange(ref _stateSaving, 1) == 1) return;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try { SaveMidiState(); }
+                finally { System.Threading.Interlocked.Exchange(ref _stateSaving, 0); }
+            });
+        }
+
         private bool _cleanedUp;
 
         /// <summary>
@@ -848,6 +875,7 @@ namespace SPWare.VirtualSoundCanvas
             // 열어둔 네이티브 자원(MIDI 핸들, 오디오 출력, 엔진 컨텍스트)을 정리합니다.
             try { _displayPollTimer.Stop(); } catch { }
             try { _midiIn?.Dispose(); } catch { }        // 새 MIDI가 엔진으로 들어가지 않게 먼저 끊는다
+            try { SaveMidiState(); } catch { }           // 다른 앱/다음 실행이 곡 설정을 이어받게 마지막 기록을 저장
             try { _mixer.Stop(); } catch { }             // 진행 중인 렌더가 끝나길 기다리고 이후는 무음
             try { _audioOutput?.Stop(); } catch { }
             try { _audioOutput?.Dispose(); } catch { }

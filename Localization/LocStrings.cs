@@ -80,6 +80,8 @@ namespace SPWare.VirtualSoundCanvas.Localization
             ["SPE3 건너뜀: MT-32 {0} ROM을 찾지 못했습니다. 지정한 폴더: {1}"] = "SPE3 skipped: MT-32 {0} ROM not found. Folder: {1}",
             ["MT-32 ROM 발견 - CONTROL: {0}, PCM: {1}"] = "MT-32 ROMs found - CONTROL: {0}, PCM: {1}",
             ["SPE3 엔진 초기화 완료 ({0}) - {1}"] = "SPE3 engine ready ({0}) - {1}",
+            ["이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE3)"] = "Picked up the song setup that was playing before (SPE3)",
+            ["이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE5)"] = "Picked up the song setup that was playing before (SPE5)",
             ["  └ 참고: 실기는 기본 상태에서 MIDI 채널 1번(0-based 0)에 파트가 배정되어 있지 않습니다. 채널 2번 이상으로 테스트해보세요."] = "  └ Note: the real unit has no part assigned to MIDI channel 1 (0-based 0) by default. Test with channel 2 or higher.",
             ["SPE3 초기화 실패: mt32_wrap.dll을 찾을 수 없습니다. 직접 빌드한 DLL을 exe와 같은 폴더(또는 Native\\x64\\)에 넣어주세요."] = "SPE3 init failed: mt32_wrap.dll not found. Put the DLL in the same folder as the exe (or in Native\\x64\\).",
             ["SPE3 초기화 실패: {0}"] = "SPE3 init failed: {0}",

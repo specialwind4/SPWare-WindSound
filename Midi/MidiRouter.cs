@@ -81,7 +81,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         {
             lock (_replayLock)
             {
-                _sysexJournal.Clear(); _sysexJournalBytes = 0;
+                _sysexJournal.Clear(); _sysexJournalBytes = 0; _stateDirty = true;
                 for (int c = 0; c < 16; c++)
                 {
                     for (int k = 0; k < 128; k++) _ccLast[c, k] = -1;
@@ -93,7 +93,106 @@ namespace SPWare.VirtualSoundCanvas.Midi
         private void Record(int channel, int controller, int value)
         {
             if (Array.IndexOf(ReplayControllers, controller) < 0) return;
-            lock (_replayLock) { _ccLast[channel, controller] = (short)value; _ccSeq[channel, controller] = ++_seq; }
+            lock (_replayLock) { _ccLast[channel, controller] = (short)value; _ccSeq[channel, controller] = ++_seq; _stateDirty = true; }
+        }
+
+        // ---- 앱을 껐다 켜도 곡의 설정을 이어받기 위한 저장/복원 ----
+        // 곡/게임이 켜져 있는 채로 앱만 바꾸면(예: 개인 버전 -> 공개 버전) 새 앱은 곡 앞부분에서 한 번 온 설정을 받은 적이 없어 빈 소리가 난다.
+        private volatile bool _stateDirty;
+        private MidiKind _restoredKind = MidiKind.Custom;
+        private bool _restorePending;
+
+        /// <summary>마지막 <see cref="ExportState"/> 뒤로 기록이 바뀌었는가.</summary>
+        public bool StateDirty => _stateDirty;
+
+        /// <summary>기록을 도착 순서대로 바이트열로 만든다. 기록이 없으면 null.</summary>
+        public byte[]? ExportState()
+        {
+            var items = new List<(long seq, byte type, byte[] payload)>();
+            MidiKind kind = CurrentKind != MidiKind.Custom ? CurrentKind : (ActiveEngine is { } ae ? KindOf(ae) : MidiKind.GmGs);
+            lock (_replayLock)
+            {
+                _stateDirty = false;
+                foreach (var (seq, d) in _sysexJournal) items.Add((seq, 0, d));
+                for (int ch = 0; ch < 16; ch++)
+                {
+                    foreach (int k in ReplayControllers)
+                        if (_ccLast[ch, k] >= 0) items.Add((_ccSeq[ch, k], 1, new[] { (byte)ch, (byte)k, (byte)_ccLast[ch, k] }));
+                    if (_programLast[ch] >= 0) items.Add((_programSeq[ch], 2, new[] { (byte)ch, (byte)_programLast[ch] }));
+                    if (_bendLast[ch] >= 0) items.Add((_bendSeq[ch], 3, new[] { (byte)ch, (byte)(_bendLast[ch] & 0x7F), (byte)(_bendLast[ch] >> 7) }));
+                }
+            }
+            if (items.Count == 0) return null;
+            items.Sort((a, b) => a.seq.CompareTo(b.seq));
+            using var ms = new System.IO.MemoryStream();
+            using (var w = new System.IO.BinaryWriter(ms))
+            {
+                w.Write(0x534D5053);                      // "SPMS"
+                w.Write(1);                               // 형식 버전
+                w.Write(DateTime.UtcNow.Ticks);
+                w.Write((int)kind);
+                w.Write(items.Count);
+                foreach (var it in items) { w.Write(it.type); w.Write(it.payload.Length); w.Write(it.payload); }
+            }
+            return ms.ToArray();
+        }
+
+        /// <summary>
+        /// 저장해 둔 기록을 불러온다(시작할 때 한 번). <paramref name="maxAge"/>보다 오래됐거나 형식이 안 맞으면 무시한다.
+        /// 불러온 설정은 해당 종류의 엔진이 열릴 때 <see cref="RestoreTo"/>가 보낸다.
+        /// </summary>
+        public bool ImportState(byte[] data, TimeSpan maxAge)
+        {
+            try
+            {
+                using var r = new System.IO.BinaryReader(new System.IO.MemoryStream(data));
+                if (r.ReadInt32() != 0x534D5053 || r.ReadInt32() != 1) return false;
+                var saved = new DateTime(r.ReadInt64(), DateTimeKind.Utc);
+                if (DateTime.UtcNow - saved > maxAge || saved > DateTime.UtcNow.AddMinutes(5)) return false;
+                int kind = r.ReadInt32();
+                int count = r.ReadInt32();
+                if (count < 0 || count > 20000) return false;
+                var sx = new List<(long, byte[])>(); var cc = new List<(int, int, int, long)>(); var pr = new List<(int, int, long)>(); var pb = new List<(int, int, long)>();
+                long seq = 0; int bytes = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    byte type = r.ReadByte(); int len = r.ReadInt32();
+                    if (len < 0 || len > 65536) return false;
+                    var p = r.ReadBytes(len); if (p.Length != len) return false;
+                    seq++;
+                    switch (type)
+                    {
+                        case 0: if (bytes + len > SysexJournalMaxBytes) return false; bytes += len; sx.Add((seq, p)); break;
+                        case 1: if (len == 3 && p[0] < 16 && p[1] < 128) cc.Add((p[0], p[1], p[2], seq)); break;
+                        case 2: if (len == 2 && p[0] < 16) pr.Add((p[0], p[1], seq)); break;
+                        case 3: if (len == 3 && p[0] < 16) pb.Add((p[0], p[1] | (p[2] << 7), seq)); break;
+                    }
+                }
+                ResetReplayState();
+                lock (_replayLock)
+                {
+                    foreach (var (s, d) in sx) { _sysexJournal.Add((s, d)); _sysexJournalBytes += d.Length; }
+                    foreach (var (ch, k, v, s) in cc) { _ccLast[ch, k] = (short)v; _ccSeq[ch, k] = s; }
+                    foreach (var (ch, v, s) in pr) { _programLast[ch] = (short)v; _programSeq[ch] = s; }
+                    foreach (var (ch, v, s) in pb) { _bendLast[ch] = (short)v; _bendSeq[ch] = s; }
+                    _seq = seq; _stateDirty = false;
+                }
+                _restoredKind = Enum.IsDefined(typeof(MidiKind), kind) ? (MidiKind)kind : MidiKind.Custom;
+                _restorePending = true;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>엔진이 열린 직후 호출. 불러온 설정의 종류가 이 엔진의 종류와 같으면 그 설정을 이 엔진에 보낸다(한 번만).</summary>
+        public bool RestoreTo(ISynthEngine engine)
+        {
+            if (!_restorePending) return false;
+            var target = _restoredKind != MidiKind.Custom ? KindToEngine?.Invoke(_restoredKind) : ActiveEngine;
+            if (!ReferenceEquals(target, engine)) return false;
+            _restorePending = false;
+            ReplayStateTo(engine, KindOf(engine));
+            return true;
         }
 
         /// <summary>
@@ -283,12 +382,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 case MidiMessageType.ProgramChange:
                     engine.ProgramChange(msg.Channel, msg.Data1);
                     _channelStates[msg.Channel] = _channelStates[msg.Channel] with { Program = msg.Data1 };
-                    lock (_replayLock) { _programLast[msg.Channel] = (short)msg.Data1; _programSeq[msg.Channel] = ++_seq; }
+                    lock (_replayLock) { _programLast[msg.Channel] = (short)msg.Data1; _programSeq[msg.Channel] = ++_seq; _stateDirty = true; }
                     ChannelStateChanged?.Invoke(this, msg.Channel);
                     break;
                 case MidiMessageType.PitchBend:
                     engine.PitchBend(msg.Channel, msg.Data1);
-                    lock (_replayLock) { _bendLast[msg.Channel] = (short)msg.Data1; _bendSeq[msg.Channel] = ++_seq; }
+                    lock (_replayLock) { _bendLast[msg.Channel] = (short)msg.Data1; _bendSeq[msg.Channel] = ++_seq; _stateDirty = true; }
                     break;
             }
         }
@@ -317,7 +416,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 {
                     if (_sysexJournalBytes + data.Length <= SysexJournalMaxBytes)
                     {
-                        _sysexJournal.Add((++_seq, data.ToArray()));
+                        _sysexJournal.Add((++_seq, data.ToArray())); _stateDirty = true;
                         _sysexJournalBytes += data.Length;
                     }
                 }
