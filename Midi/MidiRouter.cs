@@ -54,12 +54,19 @@ namespace SPWare.VirtualSoundCanvas.Midi
         // 곡의 초기 설정(SysEx, 음색/음량/팬/이펙트 값)은 곡 맨 앞에서 한 번만 오기 때문에, 재생 도중 MIDI 종류나 기본 엔진을 바꾸면
         // 새 엔진은 그걸 못 받아서 기본 음색(피아노)/기본 음량으로 울린다(빠진 소리). 다음 곡은 설정을 다시 보내니 정상이다.
         private readonly object _replayLock = new();
-        private readonly List<byte[]> _sysexJournal = new();
+        // 기록은 "도착한 순서"(_seq)와 함께 남긴다. 다시 보낼 때 그 순서를 지켜야 한다: 게임이 프로그램 체인지를 보낸 "뒤에" 음색을
+        // 임시 영역(04 xx xx)에 직접 올리는 경우, SysEx를 전부 먼저 보내고 프로그램 체인지를 나중에 보내면 프로그램 체인지가 올려 둔
+        // 음색을 덮어써서 빈 소리가 난다(원숭이섬처럼 초기화 신호 없이 MT-32 SysEx만 쓰는 게임).
+        private long _seq;
+        private readonly List<(long seq, byte[] data)> _sysexJournal = new();
         private int _sysexJournalBytes;
         private const int SysexJournalMaxBytes = 256 * 1024;
         private readonly short[,] _ccLast = NewUnset(16, 128);
+        private readonly long[,] _ccSeq = new long[16, 128];
         private readonly short[] _programLast = NewUnset(16);
+        private readonly long[] _programSeq = new long[16];
         private readonly short[] _bendLast = NewUnset(16);
+        private readonly long[] _bendSeq = new long[16];
         private static readonly int[] ReplayControllers = { 0, 32, 7, 10, 11, 71, 72, 73, 74, 91, 93 };
 
         private static short[] NewUnset(int n) { var a = new short[n]; Array.Fill(a, (short)-1); return a; }
@@ -86,46 +93,50 @@ namespace SPWare.VirtualSoundCanvas.Midi
         private void Record(int channel, int controller, int value)
         {
             if (Array.IndexOf(ReplayControllers, controller) < 0) return;
-            lock (_replayLock) _ccLast[channel, controller] = (short)value;
+            lock (_replayLock) { _ccLast[channel, controller] = (short)value; _ccSeq[channel, controller] = ++_seq; }
         }
 
         /// <summary>
         /// 지금까지 곡에서 받은 설정(SysEx 기록 + 채널별 음색/음량/팬/이펙트 값)을 한 엔진에 다시 보낸다.
         /// MIDI 종류나 기본 엔진을 재생 도중에 손으로 바꿨을 때, 새 엔진이 곡의 설정을 이어받게 하려는 것이다.
-        /// 엔진 종류에 맞는 SysEx만 보낸다(SPE3 엔진에는 SPE3용, SPE5에는 GS/GM용).
+        /// 엔진 종류에 맞는 SysEx만 보내고, 보내는 순서는 원래 도착한 순서 그대로다.
         /// </summary>
         public void ReplayStateTo(ISynthEngine target) => ReplayStateTo(target, KindOf(target));
 
         public void ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null)
         {
-            List<byte[]> sx;
-            short[,] cc; short[] prog, bend;
+            var items = new List<(long seq, Action act)>();
             lock (_replayLock)
             {
-                sx = onlyChannel is null ? new List<byte[]>(_sysexJournal) : new List<byte[]>();
-                cc = (short[,])_ccLast.Clone(); prog = (short[])_programLast.Clone(); bend = (short[])_bendLast.Clone();
-            }
-            try
-            {
-                foreach (var d in sx)
+                if (onlyChannel is null)
                 {
-                    bool roland = d.Length > 3 && d[1] == 0x41;
-                    bool ok = kind == MidiKind.Mt32 ? roland && d[3] == 0x16
-                                                    : !roland || d[3] == 0x42;   // SPE5: 유니버설/GS만
-                    if (kind == MidiKind.Mt32 && !roland) ok = false;
-                    if (ok) target.SysEx(d);
+                    foreach (var (seq, d) in _sysexJournal)
+                    {
+                        bool roland = d.Length > 3 && d[1] == 0x41;
+                        bool ok = kind == MidiKind.Mt32 ? roland && d[3] == 0x16
+                                                        : !roland || d[3] == 0x42;   // GS/GM 계열: 유니버설/GS만
+                        if (kind == MidiKind.Mt32 && !roland) ok = false;
+                        if (ok) { var data = d; items.Add((seq, () => target.SysEx(data))); }
+                    }
                 }
                 for (int ch = 0; ch < 16; ch++)
                 {
                     if (onlyChannel is int only && only != ch) continue;
-                    foreach (int k in ReplayControllers)           // 0, 32(뱅크) -> 프로그램 -> 나머지 순서
+                    int c = ch;
+                    foreach (int k in ReplayControllers)
                     {
-                        if (k is 0 or 32 && cc[ch, k] >= 0) target.ControlChange(ch, k, cc[ch, k]);
-                        if (k == 32 && prog[ch] >= 0) target.ProgramChange(ch, prog[ch]);
-                        if (k is not (0 or 32) && cc[ch, k] >= 0) target.ControlChange(ch, k, cc[ch, k]);
+                        if (_ccLast[c, k] < 0) continue;
+                        int kk = k, v = _ccLast[c, k];
+                        items.Add((_ccSeq[c, k], () => target.ControlChange(c, kk, v)));
                     }
-                    if (bend[ch] >= 0) target.PitchBend(ch, bend[ch]);
+                    if (_programLast[c] >= 0) { int v = _programLast[c]; items.Add((_programSeq[c], () => target.ProgramChange(c, v))); }
+                    if (_bendLast[c] >= 0) { int v = _bendLast[c]; items.Add((_bendSeq[c], () => target.PitchBend(c, v))); }
                 }
+            }
+            items.Sort((a, b) => a.seq.CompareTo(b.seq));
+            try
+            {
+                foreach (var it in items) it.act();
             }
             catch { /* 복원에 실패해도 라우팅 변경은 계속 */ }
         }
@@ -272,12 +283,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 case MidiMessageType.ProgramChange:
                     engine.ProgramChange(msg.Channel, msg.Data1);
                     _channelStates[msg.Channel] = _channelStates[msg.Channel] with { Program = msg.Data1 };
-                    lock (_replayLock) _programLast[msg.Channel] = (short)msg.Data1;
+                    lock (_replayLock) { _programLast[msg.Channel] = (short)msg.Data1; _programSeq[msg.Channel] = ++_seq; }
                     ChannelStateChanged?.Invoke(this, msg.Channel);
                     break;
                 case MidiMessageType.PitchBend:
                     engine.PitchBend(msg.Channel, msg.Data1);
-                    lock (_replayLock) _bendLast[msg.Channel] = (short)msg.Data1;
+                    lock (_replayLock) { _bendLast[msg.Channel] = (short)msg.Data1; _bendSeq[msg.Channel] = ++_seq; }
                     break;
             }
         }
@@ -306,7 +317,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 {
                     if (_sysexJournalBytes + data.Length <= SysexJournalMaxBytes)
                     {
-                        _sysexJournal.Add(data.ToArray());
+                        _sysexJournal.Add((++_seq, data.ToArray()));
                         _sysexJournalBytes += data.Length;
                     }
                 }
