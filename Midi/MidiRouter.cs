@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using SPWare.VirtualSoundCanvas.Engines;
 
 namespace SPWare.VirtualSoundCanvas.Midi
@@ -57,17 +58,39 @@ namespace SPWare.VirtualSoundCanvas.Midi
         // 기록은 "도착한 순서"(_seq)와 함께 남긴다. 다시 보낼 때 그 순서를 지켜야 한다: 게임이 프로그램 체인지를 보낸 "뒤에" 음색을
         // 임시 영역(04 xx xx)에 직접 올리는 경우, SysEx를 전부 먼저 보내고 프로그램 체인지를 나중에 보내면 프로그램 체인지가 올려 둔
         // 음색을 덮어써서 빈 소리가 난다(원숭이섬처럼 초기화 신호 없이 MT-32 SysEx만 쓰는 게임).
+        //
+        // 기록은 두 계열로 따로 쌓는다: 0 = GS/GM 계열(SC-55, SC-88), 1 = MT-32 계열. 게임(MT-32)이 끼어들어도 곡(GS)의 기록이 게임의
+        // 음색/음량으로 덮여 버리지 않고, 곡으로 돌아올 때 곡의 기록만 새 엔진에 다시 넣을 수 있다. 어느 계열에 쌓을지는 SysEx 내용으로
+        // 알아본다(MT-32 SysEx -> 1, GS/GM SysEx -> 0). SysEx가 없을 때는 마지막으로 정한 계열을 따른다.
+        private sealed class Journal
+        {
+            public readonly List<(long seq, byte[] data)> Sysex = new();
+            public int SysexBytes;
+            public readonly short[,] Cc = NewUnset(16, 128);
+            public readonly long[,] CcSeq = new long[16, 128];
+            public readonly short[] Program = NewUnset(16);
+            public readonly long[] ProgramSeq = new long[16];
+            public readonly short[] Bend = NewUnset(16);
+            public readonly long[] BendSeq = new long[16];
+
+            public void Clear()
+            {
+                Sysex.Clear(); SysexBytes = 0;
+                for (int c = 0; c < 16; c++)
+                {
+                    for (int k = 0; k < 128; k++) Cc[c, k] = -1;
+                    Program[c] = -1; Bend[c] = -1;
+                }
+            }
+        }
+
         private long _seq;
-        private readonly List<(long seq, byte[] data)> _sysexJournal = new();
-        private int _sysexJournalBytes;
         private const int SysexJournalMaxBytes = 256 * 1024;
-        private readonly short[,] _ccLast = NewUnset(16, 128);
-        private readonly long[,] _ccSeq = new long[16, 128];
-        private readonly short[] _programLast = NewUnset(16);
-        private readonly long[] _programSeq = new long[16];
-        private readonly short[] _bendLast = NewUnset(16);
-        private readonly long[] _bendSeq = new long[16];
+        private readonly Journal[] _journals = { new Journal(), new Journal() };
+        private int _cur;   // 지금 기록이 쌓이는 계열
         private static readonly int[] ReplayControllers = { 0, 32, 7, 10, 11, 71, 72, 73, 74, 91, 93 };
+
+        private static int FamilyOf(MidiKind k) => k == MidiKind.Mt32 ? 1 : 0;
 
         private static short[] NewUnset(int n) { var a = new short[n]; Array.Fill(a, (short)-1); return a; }
         private static short[,] NewUnset(int a, int b)
@@ -77,32 +100,80 @@ namespace SPWare.VirtualSoundCanvas.Midi
             return m;
         }
 
-        private void ResetReplayState()
-        {
-            lock (_replayLock)
-            {
-                _sysexJournal.Clear(); _sysexJournalBytes = 0; _stateDirty = true;
-                for (int c = 0; c < 16; c++)
-                {
-                    for (int k = 0; k < 128; k++) _ccLast[c, k] = -1;
-                    _programLast[c] = -1; _bendLast[c] = -1;
-                }
-            }
-        }
-
         private void Record(int channel, int controller, int value)
         {
             if (Array.IndexOf(ReplayControllers, controller) < 0) return;
-            lock (_replayLock) { _ccLast[channel, controller] = (short)value; _ccSeq[channel, controller] = ++_seq; _stateDirty = true; }
+            lock (_replayLock) { var j = _journals[_cur]; j.Cc[channel, controller] = (short)value; j.CcSeq[channel, controller] = ++_seq; _stateDirty = true; }
+        }
+
+        private void RecordProgram(int channel, int program)
+        {
+            lock (_replayLock) { var j = _journals[_cur]; j.Program[channel] = (short)program; j.ProgramSeq[channel] = ++_seq; _stateDirty = true; }
+        }
+
+        private void RecordBend(int channel, int value)
+        {
+            lock (_replayLock) { var j = _journals[_cur]; j.Bend[channel] = (short)value; j.BendSeq[channel] = ++_seq; _stateDirty = true; }
+        }
+
+        private void RecordShort(int status, int d1, int d2)
+        {
+            int ch = status & 0x0F;
+            switch (status & 0xF0)
+            {
+                case 0xB0: Record(ch, d1, d2); break;
+                case 0xC0: RecordProgram(ch, d1); break;
+            }
+        }
+
+        /// <summary>SysEx 내용으로 계열을 알아본다. 0 = GS/GM, 1 = MT-32, null = 알 수 없음.</summary>
+        private static int? FamilyOfSysEx(ReadOnlySpan<byte> d)
+        {
+            if (d.Length < 6 || d[0] != 0xF0) return null;
+            if (d[1] == 0x7E && d[3] == 0x09 && (d[4] == 0x01 || d[4] == 0x03)) return 0;   // GM On / GM2 On
+            if (d[1] == 0x41 && d.Length >= 8) { if (d[3] == 0x16) return 1; if (d[3] == 0x42) return 0; }
+            return null;
+        }
+
+        private static bool IsMt32Reset(ReadOnlySpan<byte> d) =>
+            d.Length >= 8 && d[0] == 0xF0 && d[1] == 0x41 && d[3] == 0x16 && d[4] == 0x12 && ((d[5] << 14) | (d[6] << 7) | d[7]) == (0x7F << 14);
+
+        private long _lastMt32SysexTick;
+
+        /// <summary>밀리초 시계. 시험에서 시뮬레이션 시간으로 바꿀 수 있게 열어 둔다.</summary>
+        public Func<long> Clock { get; set; } = () => Environment.TickCount64;
+
+        private void JournalSysEx(ReadOnlySpan<byte> data)
+        {
+            if (data.Length >= 4 && data[0] == 0xF0 && data[1] == 0x7E && data[3] == 0x06) return;   // 장치 조회는 설정이 아니다
+            var fam = FamilyOfSysEx(data);
+            if (fam == 1) Interlocked.Exchange(ref _lastMt32SysexTick, Clock());
+            // 새 곡/게임의 시작 신호(GM On / GS Reset / MODE-2 / MT-32 리셋)면 그 계열의 이전 기록을 버리고 거기서부터 다시 모은다.
+            bool start = MidiKindDetector.IsSongStart(data) || IsMt32Reset(data) ;
+            lock (_replayLock)
+            {
+                if (fam is int f) _cur = f;
+                var j = _journals[_cur];
+                if (start) { j.Clear(); _stateDirty = true; }
+                if (j.SysexBytes + data.Length <= SysexJournalMaxBytes)
+                {
+                    j.Sysex.Add((++_seq, data.ToArray())); _stateDirty = true;
+                    j.SysexBytes += data.Length;
+                }
+            }
         }
 
         // ---- MT-32 게임 뒤에 곡이 중간부터 이어질 때 원래 종류로 돌아오기 ----
         // 게임(MT-32)을 거치고 나면 종류가 MT-32에 머물러 있다. 플레이어가 곡을 중간부터 재생하면 곡 앞의 모드 신호(GM On/GS Reset)가
         // 안 오기 때문에(처음부터 재생하면 신호가 와서 정상이다) 곡이 MT-32 엔진으로 나간다. 실기 MT-32는 파트에 배정되지 않은 채널
         // (기본은 1번 채널과 11~16번)의 음표를 소리 내지 않는다. 그런 채널에 음표가 오면 MT-32 음악이 아니라는 뜻이므로 원래 쓰던 종류로 돌아간다.
+        // 음표는 이미 늦다(중간부터 재생하면 음표 전에 음색/음량 재현 메시지가 먼저 온다). MT-32가 모르는 메시지(뱅크 셀렉트 CC0/32,
+        // 사운드 컨트롤러 CC71~74, 리버브/코러스 CC91/93, 배정 안 된 채널의 프로그램 체인지)가 짧은 시간에 여러 개 오면 그것도 같은 신호로 본다.
         private static readonly int[] DefaultMt32Assign = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };   // 파트 1~8과 리듬 파트의 MIDI 채널(0부터)
         private readonly int[] _mt32ChanAssign = (int[])DefaultMt32Assign.Clone();
         private MidiKind _lastNonMt32Kind = MidiKind.GmGs;
+        private readonly List<(long tick, byte status, byte d1, byte d2, bool weak)> _recent = new();   // MT-32 상태에서 최근에 온 CC/프로그램 체인지
+        private const int WeakWindowMs = 400, WeakThreshold = 3, MT32GraceMs = 2000, RecentMs = 1500;
 
         /// <summary>MT-32 SysEx(시스템 영역 10 00 0D~15 = 채널 배정, 7F 00 00 = 리셋)를 보고 어느 채널이 MT-32 파트에 배정됐는지 따라간다.</summary>
         private void TrackMt32Assign(ReadOnlySpan<byte> d)
@@ -121,14 +192,61 @@ namespace SPWare.VirtualSoundCanvas.Midi
 
         private bool IsMt32Channel(int channel) => Array.IndexOf(_mt32ChanAssign, channel) >= 0;
 
-        private void RevertFromMt32()
+        /// <summary>MT-32 상태에서 MT-32 음악이 아니라는 증거가 오면 원래 종류로 돌아간다. 돌아가면 true.</summary>
+        private bool CheckRevert(byte status, byte d1, byte d2)
+        {
+            if (!AutoDetectKind || CurrentKind != MidiKind.Mt32) { if (_recent.Count > 0) _recent.Clear(); return false; }
+            int type = status & 0xF0, ch = status & 0x0F;
+            long now = Clock();
+            if (type == 0x90)
+            {
+                if (d2 > 0 && !IsMt32Channel(ch)) { DoRevert(now); return true; }
+                return false;
+            }
+            if (type != 0xB0 && type != 0xC0) return false;
+            if (type == 0xB0 && d1 is 120 or 121 or 123) return false;   // 모두 끄기/컨트롤러 리셋은 어느 쪽에나 온다
+
+            bool weak = (type == 0xB0 && d1 is 0 or 32 or 71 or 72 or 73 or 74 or 91 or 93) || (type == 0xC0 && !IsMt32Channel(ch));
+            _recent.RemoveAll(w => now - w.tick > RecentMs);
+            // 게임이 방금 MT-32 초기화를 보냈다면 아직 게임이다
+            if (weak && now - Interlocked.Read(ref _lastMt32SysexTick) >= MT32GraceMs)
+            {
+                int n = 1; foreach (var w in _recent) if (w.weak && now - w.tick <= WeakWindowMs) n++;
+                if (n >= WeakThreshold) { DoRevert(now); return true; }
+            }
+            _recent.Add((now, status, d1, d2, weak));
+            if (_recent.Count > 128) _recent.RemoveAt(0);
+            return false;
+        }
+
+        private void DoRevert(long now)
+        {
+            var earlier = new List<(byte status, byte d1, byte d2)>();
+            foreach (var w in _recent) if (now - w.tick <= RecentMs) earlier.Add((w.status, w.d1, w.d2));
+            _recent.Clear();
+            RevertFromMt32(earlier);
+        }
+
+        private void RevertFromMt32(List<(byte status, byte d1, byte d2)> earlier)
         {
             var kind = _lastNonMt32Kind;
             var target = KindToEngine?.Invoke(kind);
             if (target is null) return;
             ApplyKind(kind, automatic: true);
-            // 곡을 중간부터 틀면 음색/음량 설정은 MT-32였을 때 이미 지나갔다. 새 엔진에 다시 넣어 준다.
-            ReplayStateTo(target, kind);
+            // 곡을 중간부터 틀면 음색/음량 설정은 MT-32였을 때 이미 지나갔다. 곡(GS 계열)의 기록을 새 엔진에 다시 넣고,
+            // 방금 MT-32로 잘못 간 메시지들(상태 재현 등)도 새 엔진에 보낸다.
+            ReplayStateTo(target, kind, family: FamilyOf(kind));
+            lock (_replayLock) _cur = FamilyOf(kind);
+            foreach (var w in earlier)
+            {
+                try
+                {
+                    int ch = w.status & 0x0F;
+                    if ((w.status & 0xF0) == 0xB0) target.ControlChange(ch, w.d1, w.d2); else target.ProgramChange(ch, w.d1);
+                }
+                catch { }
+                RecordShort(w.status, w.d1, w.d2);
+            }
         }
 
         // ---- 앱을 껐다 켜도 곡의 설정을 이어받기 위한 저장/복원 ----
@@ -140,21 +258,23 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// <summary>마지막 <see cref="ExportState"/> 뒤로 기록이 바뀌었는가.</summary>
         public bool StateDirty => _stateDirty;
 
-        /// <summary>기록을 도착 순서대로 바이트열로 만든다. 기록이 없으면 null.</summary>
+        /// <summary>지금 쌓이고 있는 계열의 기록을 도착 순서대로 바이트열로 만든다. 기록이 없으면 null.</summary>
         public byte[]? ExportState()
         {
             var items = new List<(long seq, byte type, byte[] payload)>();
-            MidiKind kind = CurrentKind != MidiKind.Custom ? CurrentKind : (ActiveEngine is { } ae ? KindOf(ae) : MidiKind.GmGs);
+            MidiKind kind;
             lock (_replayLock)
             {
                 _stateDirty = false;
-                foreach (var (seq, d) in _sysexJournal) items.Add((seq, 0, d));
+                kind = _cur == 1 ? MidiKind.Mt32 : (CurrentKind is MidiKind.Mt32 or MidiKind.Custom ? _lastNonMt32Kind : CurrentKind);
+                var j = _journals[_cur];
+                foreach (var (seq, d) in j.Sysex) items.Add((seq, 0, d));
                 for (int ch = 0; ch < 16; ch++)
                 {
                     foreach (int k in ReplayControllers)
-                        if (_ccLast[ch, k] >= 0) items.Add((_ccSeq[ch, k], 1, new[] { (byte)ch, (byte)k, (byte)_ccLast[ch, k] }));
-                    if (_programLast[ch] >= 0) items.Add((_programSeq[ch], 2, new[] { (byte)ch, (byte)_programLast[ch] }));
-                    if (_bendLast[ch] >= 0) items.Add((_bendSeq[ch], 3, new[] { (byte)ch, (byte)(_bendLast[ch] & 0x7F), (byte)(_bendLast[ch] >> 7) }));
+                        if (j.Cc[ch, k] >= 0) items.Add((j.CcSeq[ch, k], 1, new[] { (byte)ch, (byte)k, (byte)j.Cc[ch, k] }));
+                    if (j.Program[ch] >= 0) items.Add((j.ProgramSeq[ch], 2, new[] { (byte)ch, (byte)j.Program[ch] }));
+                    if (j.Bend[ch] >= 0) items.Add((j.BendSeq[ch], 3, new[] { (byte)ch, (byte)(j.Bend[ch] & 0x7F), (byte)(j.Bend[ch] >> 7) }));
                 }
             }
             if (items.Count == 0) return null;
@@ -203,17 +323,19 @@ namespace SPWare.VirtualSoundCanvas.Midi
                         case 3: if (len == 3 && p[0] < 16) pb.Add((p[0], p[1] | (p[2] << 7), seq)); break;
                     }
                 }
-                ResetReplayState();
+                var restored = Enum.IsDefined(typeof(MidiKind), kind) ? (MidiKind)kind : MidiKind.Custom;
                 lock (_replayLock)
                 {
-                    foreach (var (s, d) in sx) { _sysexJournal.Add((s, d)); _sysexJournalBytes += d.Length; }
-                    foreach (var (ch, k, v, s) in cc) { _ccLast[ch, k] = (short)v; _ccSeq[ch, k] = s; }
-                    foreach (var (ch, v, s) in pr) { _programLast[ch] = (short)v; _programSeq[ch] = s; }
-                    foreach (var (ch, v, s) in pb) { _bendLast[ch] = (short)v; _bendSeq[ch] = s; }
+                    int fam = FamilyOf(restored == MidiKind.Custom ? _lastNonMt32Kind : restored);
+                    var j = _journals[fam]; j.Clear(); _cur = fam;
+                    foreach (var (s, d) in sx) { j.Sysex.Add((s, d)); j.SysexBytes += d.Length; }
+                    foreach (var (ch, k, v, s) in cc) { j.Cc[ch, k] = (short)v; j.CcSeq[ch, k] = s; }
+                    foreach (var (ch, v, s) in pr) { j.Program[ch] = (short)v; j.ProgramSeq[ch] = s; }
+                    foreach (var (ch, v, s) in pb) { j.Bend[ch] = (short)v; j.BendSeq[ch] = s; }
                     _seq = seq; _stateDirty = false;
                     foreach (var (_, d) in sx) TrackMt32Assign(d);   // 저장해 둔 MT-32 채널 배정도 이어받는다(안 그러면 1번 채널을 쓰는 게임이 곡으로 오해받는다)
                 }
-                _restoredKind = Enum.IsDefined(typeof(MidiKind), kind) ? (MidiKind)kind : MidiKind.Custom;
+                _restoredKind = restored;
                 _restorePending = true;
                 return true;
             }
@@ -227,25 +349,27 @@ namespace SPWare.VirtualSoundCanvas.Midi
             var target = _restoredKind != MidiKind.Custom ? KindToEngine?.Invoke(_restoredKind) : ActiveEngine;
             if (!ReferenceEquals(target, engine)) return false;
             _restorePending = false;
-            ReplayStateTo(engine, KindOf(engine));
+            ReplayStateTo(engine, KindOf(engine), family: FamilyOf(_restoredKind == MidiKind.Custom ? KindOf(engine) : _restoredKind));
             return true;
         }
 
         /// <summary>
         /// 지금까지 곡에서 받은 설정(SysEx 기록 + 채널별 음색/음량/팬/이펙트 값)을 한 엔진에 다시 보낸다.
         /// MIDI 종류나 기본 엔진을 재생 도중에 손으로 바꿨을 때, 새 엔진이 곡의 설정을 이어받게 하려는 것이다.
-        /// 엔진 종류에 맞는 SysEx만 보내고, 보내는 순서는 원래 도착한 순서 그대로다.
+        /// 기본은 지금 재생 중인 곡(마지막으로 정해진 계열)의 기록이고, 보내는 SysEx는 대상 엔진 종류에 맞는 것만 거른다.
+        /// 순서는 원래 도착한 순서 그대로다. <paramref name="family"/>를 주면 그 계열에 남아 있는 기록을 보낸다(게임에서 곡으로 돌아갈 때).
         /// </summary>
         public void ReplayStateTo(ISynthEngine target) => ReplayStateTo(target, KindOf(target));
 
-        public void ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null)
+        public void ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null, int? family = null)
         {
             var items = new List<(long seq, Action act)>();
             lock (_replayLock)
             {
+                var j = _journals[family ?? _cur];
                 if (onlyChannel is null)
                 {
-                    foreach (var (seq, d) in _sysexJournal)
+                    foreach (var (seq, d) in j.Sysex)
                     {
                         bool roland = d.Length > 3 && d[1] == 0x41;
                         bool ok = kind == MidiKind.Mt32 ? roland && d[3] == 0x16
@@ -260,12 +384,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     int c = ch;
                     foreach (int k in ReplayControllers)
                     {
-                        if (_ccLast[c, k] < 0) continue;
-                        int kk = k, v = _ccLast[c, k];
-                        items.Add((_ccSeq[c, k], () => target.ControlChange(c, kk, v)));
+                        if (j.Cc[c, k] < 0) continue;
+                        int kk = k, v = j.Cc[c, k];
+                        items.Add((j.CcSeq[c, k], () => target.ControlChange(c, kk, v)));
                     }
-                    if (_programLast[c] >= 0) { int v = _programLast[c]; items.Add((_programSeq[c], () => target.ProgramChange(c, v))); }
-                    if (_bendLast[c] >= 0) { int v = _bendLast[c]; items.Add((_bendSeq[c], () => target.PitchBend(c, v))); }
+                    if (j.Program[c] >= 0) { int v = j.Program[c]; items.Add((j.ProgramSeq[c], () => target.ProgramChange(c, v))); }
+                    if (j.Bend[c] >= 0) { int v = j.Bend[c]; items.Add((j.BendSeq[c], () => target.PitchBend(c, v))); }
                 }
             }
             items.Sort((a, b) => a.seq.CompareTo(b.seq));
@@ -396,9 +520,8 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// <summary>WinMM 등에서 들어온 짧은 MIDI 메시지(3바이트 이하) 처리.</summary>
         public void HandleShortMessage(byte status, byte data1, byte data2)
         {
-            // 자동 감지가 켜져 있고 MT-32인데, MT-32 파트가 없는 채널에 음표가 오면 MT-32 음악이 아니다 -> 원래 종류로 돌아간다
-            if ((status & 0xF0) == 0x90 && data2 > 0 && AutoDetectKind && CurrentKind == MidiKind.Mt32 && !IsMt32Channel(status & 0x0F))
-                RevertFromMt32();
+            // 자동 감지가 켜져 있고 MT-32인데 MT-32 음악이 아니라는 증거가 오면 원래 종류로 돌아간다
+            CheckRevert(status, data1, data2);
 
             var channel = status & 0x0F;
             if (!_channelMap.TryGetValue(channel, out var engine))
@@ -423,12 +546,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 case MidiMessageType.ProgramChange:
                     engine.ProgramChange(msg.Channel, msg.Data1);
                     _channelStates[msg.Channel] = _channelStates[msg.Channel] with { Program = msg.Data1 };
-                    lock (_replayLock) { _programLast[msg.Channel] = (short)msg.Data1; _programSeq[msg.Channel] = ++_seq; _stateDirty = true; }
+                    RecordProgram(msg.Channel, msg.Data1);
                     ChannelStateChanged?.Invoke(this, msg.Channel);
                     break;
                 case MidiMessageType.PitchBend:
                     engine.PitchBend(msg.Channel, msg.Data1);
-                    lock (_replayLock) { _bendLast[msg.Channel] = (short)msg.Data1; _bendSeq[msg.Channel] = ++_seq; _stateDirty = true; }
+                    RecordBend(msg.Channel, msg.Data1);
                     break;
             }
         }
@@ -449,20 +572,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             }
 
             TrackMt32Assign(data);
-            bool isIdentityRequest = data.Length >= 4 && data[0] == 0xF0 && data[1] == 0x7E && data[3] == 0x06;
-            if (!isIdentityRequest)
-            {
-                // 새 곡의 시작 신호(GM On / GS Reset / SPE3 초기화)면 이전 곡의 기록을 버리고 거기서부터 다시 모은다.
-                if (MidiKindDetector.IsSongStart(data)) ResetReplayState();
-                lock (_replayLock)
-                {
-                    if (_sysexJournalBytes + data.Length <= SysexJournalMaxBytes)
-                    {
-                        _sysexJournal.Add((++_seq, data.ToArray())); _stateDirty = true;
-                        _sysexJournalBytes += data.Length;
-                    }
-                }
-            }
+            JournalSysEx(data);
 
             bool isDeviceInquiry = data.Length >= 2 && data[0] == 0xF0 && data[1] == 0x7E;
 
