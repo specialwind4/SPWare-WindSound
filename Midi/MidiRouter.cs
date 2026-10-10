@@ -96,6 +96,41 @@ namespace SPWare.VirtualSoundCanvas.Midi
             lock (_replayLock) { _ccLast[channel, controller] = (short)value; _ccSeq[channel, controller] = ++_seq; _stateDirty = true; }
         }
 
+        // ---- MT-32 게임 뒤에 곡이 중간부터 이어질 때 원래 종류로 돌아오기 ----
+        // 게임(MT-32)을 거치고 나면 종류가 MT-32에 머물러 있다. 플레이어가 곡을 중간부터 재생하면 곡 앞의 모드 신호(GM On/GS Reset)가
+        // 안 오기 때문에(처음부터 재생하면 신호가 와서 정상이다) 곡이 MT-32 엔진으로 나간다. 실기 MT-32는 파트에 배정되지 않은 채널
+        // (기본은 1번 채널과 11~16번)의 음표를 소리 내지 않는다. 그런 채널에 음표가 오면 MT-32 음악이 아니라는 뜻이므로 원래 쓰던 종류로 돌아간다.
+        private static readonly int[] DefaultMt32Assign = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };   // 파트 1~8과 리듬 파트의 MIDI 채널(0부터)
+        private readonly int[] _mt32ChanAssign = (int[])DefaultMt32Assign.Clone();
+        private MidiKind _lastNonMt32Kind = MidiKind.GmGs;
+
+        /// <summary>MT-32 SysEx(시스템 영역 10 00 0D~15 = 채널 배정, 7F 00 00 = 리셋)를 보고 어느 채널이 MT-32 파트에 배정됐는지 따라간다.</summary>
+        private void TrackMt32Assign(ReadOnlySpan<byte> d)
+        {
+            // F0 41 dev 16 12 a1 a2 a3 data... checksum F7
+            if (d.Length < 10 || d[0] != 0xF0 || d[1] != 0x41 || d[3] != 0x16 || d[4] != 0x12) return;
+            int addr = (d[5] << 14) | (d[6] << 7) | d[7];
+            if (addr == (0x7F << 14)) { Array.Copy(DefaultMt32Assign, _mt32ChanAssign, 9); return; }   // 리셋: 기본 배정으로
+            int n = d.Length - 10;
+            for (int i = 0; i < n; i++)
+            {
+                int k = addr + i - ((0x10 << 14) + 0x0D);
+                if (k >= 0 && k < 9) _mt32ChanAssign[k] = d[8 + i];
+            }
+        }
+
+        private bool IsMt32Channel(int channel) => Array.IndexOf(_mt32ChanAssign, channel) >= 0;
+
+        private void RevertFromMt32()
+        {
+            var kind = _lastNonMt32Kind;
+            var target = KindToEngine?.Invoke(kind);
+            if (target is null) return;
+            ApplyKind(kind, automatic: true);
+            // 곡을 중간부터 틀면 음색/음량 설정은 MT-32였을 때 이미 지나갔다. 새 엔진에 다시 넣어 준다.
+            ReplayStateTo(target, kind);
+        }
+
         // ---- 앱을 껐다 켜도 곡의 설정을 이어받기 위한 저장/복원 ----
         // 곡/게임이 켜져 있는 채로 앱만 바꾸면(예: 개인 버전 -> 공개 버전) 새 앱은 곡 앞부분에서 한 번 온 설정을 받은 적이 없어 빈 소리가 난다.
         private volatile bool _stateDirty;
@@ -176,6 +211,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     foreach (var (ch, v, s) in pr) { _programLast[ch] = (short)v; _programSeq[ch] = s; }
                     foreach (var (ch, v, s) in pb) { _bendLast[ch] = (short)v; _bendSeq[ch] = s; }
                     _seq = seq; _stateDirty = false;
+                    foreach (var (_, d) in sx) TrackMt32Assign(d);   // 저장해 둔 MT-32 채널 배정도 이어받는다(안 그러면 1번 채널을 쓰는 게임이 곡으로 오해받는다)
                 }
                 _restoredKind = Enum.IsDefined(typeof(MidiKind), kind) ? (MidiKind)kind : MidiKind.Custom;
                 _restorePending = true;
@@ -309,6 +345,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 _channelMap = new Dictionary<int, ISynthEngine>();
                 ActiveEngine = target;
                 CurrentKind = kind;
+                if (kind != MidiKind.Mt32 && kind != MidiKind.Custom) _lastNonMt32Kind = kind;
             }
 
             foreach (var e in previous)
@@ -359,6 +396,10 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// <summary>WinMM 등에서 들어온 짧은 MIDI 메시지(3바이트 이하) 처리.</summary>
         public void HandleShortMessage(byte status, byte data1, byte data2)
         {
+            // 자동 감지가 켜져 있고 MT-32인데, MT-32 파트가 없는 채널에 음표가 오면 MT-32 음악이 아니다 -> 원래 종류로 돌아간다
+            if ((status & 0xF0) == 0x90 && data2 > 0 && AutoDetectKind && CurrentKind == MidiKind.Mt32 && !IsMt32Channel(status & 0x0F))
+                RevertFromMt32();
+
             var channel = status & 0x0F;
             if (!_channelMap.TryGetValue(channel, out var engine))
                 engine = ActiveEngine; // 배정 안 된 채널은 활성 엔진으로
@@ -407,6 +448,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     ApplyKind(detected, automatic: true);
             }
 
+            TrackMt32Assign(data);
             bool isIdentityRequest = data.Length >= 4 && data[0] == 0xF0 && data[1] == 0x7E && data[3] == 0x06;
             if (!isIdentityRequest)
             {
