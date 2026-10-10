@@ -164,6 +164,8 @@ namespace SPWare.VirtualSoundCanvas.Midi
         }
 
         // ---- MT-32 게임 뒤에 곡이 중간부터 이어질 때 원래 종류로 돌아오기 ----
+        // 주의: 이 규칙이 게임 도중에 잘못 켜지면 게임 소리가 SC-55/88로 넘어가 버린다(실제로 원숭이섬에서 그랬다). 그래서 증거 하나로는 돌아가지 않고,
+        // 게임이 꺼 둔 채널의 음표나 게임이 방금 MT-32 초기화를 보낸 직후의 메시지는 증거로 치지 않는다.
         // 게임(MT-32)을 거치고 나면 종류가 MT-32에 머물러 있다. 플레이어가 곡을 중간부터 재생하면 곡 앞의 모드 신호(GM On/GS Reset)가
         // 안 오기 때문에(처음부터 재생하면 신호가 와서 정상이다) 곡이 MT-32 엔진으로 나간다. 실기 MT-32는 파트에 배정되지 않은 채널
         // (기본은 1번 채널과 11~16번)의 음표를 소리 내지 않는다. 그런 채널에 음표가 오면 MT-32 음악이 아니라는 뜻이므로 원래 쓰던 종류로 돌아간다.
@@ -198,15 +200,20 @@ namespace SPWare.VirtualSoundCanvas.Midi
             if (!AutoDetectKind || CurrentKind != MidiKind.Mt32) { if (_recent.Count > 0) _recent.Clear(); return false; }
             int type = status & 0xF0, ch = status & 0x0F;
             long now = Clock();
+            bool weak;
             if (type == 0x90)
             {
-                if (d2 > 0 && !IsMt32Channel(ch)) { DoRevert(now); return true; }
-                return false;
+                // MT-32 파트가 없는 채널의 음표. 하지만 원숭이섬 같은 게임은 안 쓰는 채널의 음량을 0으로 꺼 두고도 그 채널로 음표를 보낸다.
+                // 꺼진 채널의 음표는 증거가 아니다. 그리고 음표 하나로는 돌아가지 않는다(아래의 "여러 개 모이면" 규칙을 따른다).
+                if (d2 == 0 || IsMt32Channel(ch) || ChannelMuted(ch)) return false;
+                weak = true;
             }
-            if (type != 0xB0 && type != 0xC0) return false;
-            if (type == 0xB0 && d1 is 120 or 121 or 123) return false;   // 모두 끄기/컨트롤러 리셋은 어느 쪽에나 온다
-
-            bool weak = (type == 0xB0 && d1 is 0 or 32 or 71 or 72 or 73 or 74 or 91 or 93) || (type == 0xC0 && !IsMt32Channel(ch));
+            else
+            {
+                if (type != 0xB0 && type != 0xC0) return false;
+                if (type == 0xB0 && d1 is 120 or 121 or 123) return false;   // 모두 끄기/컨트롤러 리셋은 어느 쪽에나 온다
+                weak = (type == 0xB0 && d1 is 0 or 32 or 71 or 72 or 73 or 74 or 91 or 93) || (type == 0xC0 && !IsMt32Channel(ch));
+            }
             _recent.RemoveAll(w => now - w.tick > RecentMs);
             // 게임이 방금 MT-32 초기화를 보냈다면 아직 게임이다
             if (weak && now - Interlocked.Read(ref _lastMt32SysexTick) >= MT32GraceMs)
@@ -217,6 +224,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
             _recent.Add((now, status, d1, d2, weak));
             if (_recent.Count > 128) _recent.RemoveAt(0);
             return false;
+        }
+
+        /// <summary>채널의 음량(CC7)이 0으로 꺼져 있는가(지금 쌓이고 있는 기록 기준).</summary>
+        private bool ChannelMuted(int ch)
+        {
+            lock (_replayLock) return _journals[_cur].Cc[ch, 7] == 0;
         }
 
         private void DoRevert(long now)
@@ -242,7 +255,10 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 try
                 {
                     int ch = w.status & 0x0F;
-                    if ((w.status & 0xF0) == 0xB0) target.ControlChange(ch, w.d1, w.d2); else target.ProgramChange(ch, w.d1);
+                    int type = w.status & 0xF0;
+                    if (type == 0xB0) target.ControlChange(ch, w.d1, w.d2);
+                    else if (type == 0xC0) target.ProgramChange(ch, w.d1);
+                    else if (type == 0x90) target.NoteOn(ch, w.d1, w.d2);   // 증거가 된 음표도 새 엔진에서 울린다
                 }
                 catch { }
                 RecordShort(w.status, w.d1, w.d2);
