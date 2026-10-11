@@ -89,6 +89,15 @@ namespace SPWare.VirtualSoundCanvas.Midi
             public long StartTick;
             public bool StartedByMarker;     // 곡/게임의 시작 신호로 시작한 구간인가(앱이 켜질 때 만든 첫 구간은 아니다)
 
+            /// <summary>다른 구간의 기록을 통째로 복사한다(자동 복귀로 곡 구간을 이어 갈 때).</summary>
+            public void CopyFrom(Journal o)
+            {
+                Sysex.Clear(); Sysex.AddRange(o.Sysex); SysexBytes = o.SysexBytes;
+                Array.Copy(o.Cc, Cc, Cc.Length); Array.Copy(o.CcSeq, CcSeq, CcSeq.Length);
+                Array.Copy(o.Program, Program, Program.Length); Array.Copy(o.ProgramSeq, ProgramSeq, ProgramSeq.Length);
+                Array.Copy(o.Bend, Bend, Bend.Length); Array.Copy(o.BendSeq, BendSeq, BendSeq.Length);
+            }
+
             /// <summary>채널 설정(음색 선택, 컨트롤러, 벤드)이 하나라도 있는가. 곡/게임 한 판에는 반드시 있다(떠돌이 SysEx만 있는 구간과 구별).</summary>
             public bool HasChannelState
             {
@@ -193,7 +202,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             {
                 // 방금 구간을 시작했으면 같은 시작으로 본다(플레이어는 정지/탐색할 때 GS Reset과 All Notes Off를 여러 번 연달아 보낸다)
                 if (now - Cur.StartTick < MergeWithStartMs && Cur.StartedByMarker) return;
-                NewSegmentLocked(-1, "all notes off");
+                NewSegmentLocked(CurrentKind == MidiKind.Mt32 ? 1 : -1, "all notes off");
             }
         }
 
@@ -248,7 +257,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         private readonly int[] _mt32ChanAssign = (int[])DefaultMt32Assign.Clone();
         private MidiKind _lastNonMt32Kind = MidiKind.GmGs;
         private readonly List<(long tick, byte status, byte d1, byte d2, bool weak, short prev, long prevSeq)> _recent = new();   // MT-32 상태에서 최근에 온 CC/프로그램 체인지/음표(기록에 덮어쓴 이전 값 포함)
-        private const int WeakWindowMs = 400, WeakThreshold = 3, MT32GraceMs = 2000, RecentMs = 1500;
+        private const int WeakWindowMs = 1000, WeakThreshold = 3, MT32GraceMs = 2000, RecentMs = 1500;
 
         /// <summary>MT-32 SysEx(시스템 영역 10 00 0D~15 = 채널 배정, 7F 00 00 = 리셋)를 보고 어느 채널이 MT-32 파트에 배정됐는지 따라간다.</summary>
         private void TrackMt32Assign(ReadOnlySpan<byte> d)
@@ -311,7 +320,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// <summary>채널의 음량(CC7)이 0으로 꺼져 있는가(지금 구간 기준).</summary>
         private bool ChannelMuted(int ch)
         {
-            lock (_replayLock) return Cur.Cc[ch, 7] == 0;
+            lock (_replayLock) return Cur.Family == 1 && Cur.Cc[ch, 7] == 0;
         }
 
         private void DoRevert(long now)
@@ -331,11 +340,18 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     if (ty == 0xC0) { j.Program[ch] = w.prev; j.ProgramSeq[ch] = w.prevSeq; }
                     else if (ty == 0xB0 && Array.IndexOf(ReplayControllers, w.d1) >= 0) { j.Cc[ch, w.d1] = w.prev; j.CcSeq[ch, w.d1] = w.prevSeq; }
                 }
-                // 돌아갈 곡의 기록: 지금 구간(게임)보다 앞의, MT-32로 밝혀지지 않은 가장 최근 구간
-                for (int i = _segs.Count - 2; i >= 0; i--) if (_segs[i].Family != 1 && _segs[i].HasContent) { song = _segs[i]; break; }
+                // 돌아갈 곡의 기록: 지금 구간(게임)보다 앞의, GS로 밝혀진 가장 최근 구간. 없으면 계열 모름 구간.
+                // (계열 모름 구간을 먼저 고르면 안 된다: 원숭이섬은 시작할 때 16채널 음량을 모두 0으로 보내는데, 그 구간을 곡으로 골라
+                // SC-55에 다시 보내서 소리가 하나도 안 났다 - 2026-10-11 사용자 기록)
+                for (int i = _segs.Count - 2; i >= 0 && song == null; i--) if (_segs[i].Family == 0 && _segs[i].HasChannelState) song = _segs[i];
+                for (int i = _segs.Count - 2; i >= 0 && song == null; i--) if (_segs[i].Family == -1 && _segs[i].HasChannelState) song = _segs[i];
                 // 이후의 메시지는 곡의 새 구간에 쌓는다. 복귀는 "MT-32 음악이 아니다"라는 판단이므로 이 구간은 GS 계열로 표시한다
                 // (안 그러면 나중에 손으로 MT-32를 고를 때 게임 구간 대신 이 곡 구간이 골라진다).
-                if (j.HasContent) NewSegmentLocked(0, "revert"); else j.Family = 0;
+                // 새 구간은 돌아간 곡의 기록을 통째로 이어받는다(안 그러면 다음 왕복 때 이 구간이 곡으로 골라지는데, 복귀 뒤의 메시지
+                // 몇 개만 있어서 음량 등이 빠진다 - 2026-10-11 사용자 두 번째 시도: 원숭이섬이 SC-55에 보낸 음량 0이 그대로 남아 무음).
+                var ns = j.HasContent ? NewSegmentLocked(0, "revert") : j;
+                ns.Family = 0;
+                if (song != null && !ReferenceEquals(ns, song)) ns.CopyFrom(song);
                 _stateDirty = true;
             }
             var earlier = new List<(byte status, byte d1, byte d2)>();
@@ -684,6 +700,8 @@ namespace SPWare.VirtualSoundCanvas.Midi
             if (!automatic && previous.Any(e => !ReferenceEquals(e, target)))
                 ReplayStateTo(target, kind);
 
+            if (!automatic && kind == MidiKind.Mt32)
+                lock (_replayLock) if (Cur.Family == -1) Cur.Family = 1;   // 손으로 MT-32를 골랐다: 지금 구간은 MT-32 소리(원숭이섬처럼 SysEx를 안 보내는 게임)
             if (Trace != null) T($"KIND -> {kind} ({(automatic ? "auto" : "manual")}) segs={_segs.Count} curfam={Cur.Family}");
             KindChanged?.Invoke(this, (kind, automatic));
         }
