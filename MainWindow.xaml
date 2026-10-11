@@ -606,9 +606,16 @@
                 </Border>
             </Expander>
 
+            <TextBlock x:Name="UpdateNotice" Visibility="Collapsed" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="#E8B84A">
+                <Run x:Name="UpdateText"/><Hyperlink x:Name="UpdateLink" Click="OnUpdateLinkClick" Foreground="#FFD27A"/>
+            </TextBlock>
+
             <Grid>
-                <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"
-                          VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"/>
+                    <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
+                              Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
+                </StackPanel>
                 <Button Content="시작" Width="120" HorizontalAlignment="Right" Padding="14,10" Click="OnStart"/>
             </Grid>
         </StackPanel>

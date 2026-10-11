@@ -49,6 +49,7 @@ namespace SPWare.VirtualSoundCanvas
                 PopulateDevices();
                 ApplySettingsToUi();
                 _uiReady = true;
+                StartUpdateCheck();      // 새 버전 안내(백그라운드, 인터넷이 없으면 조용히 포기)
                 if (_settings.AutoStart) StartAll();
             };
 
@@ -277,6 +278,7 @@ namespace SPWare.VirtualSoundCanvas
             Mt32VolumeSlider.Value = _settings.Mt32Volume * 100;
             Sc55VolumeSlider.Value = _settings.Sc55Volume * 100;
             AutoStartCheck.IsChecked = _settings.AutoStart;
+            UpdateCheck.IsChecked = _settings.CheckForUpdates;
 
             LanguageCombo.ItemsSource = new[] { "Auto (Windows language / 윈도 언어)", "한국어", "English" };
             LanguageCombo.SelectedIndex = _settings.Language switch { "ko" => 1, "en" => 2, _ => 0 };
@@ -325,6 +327,7 @@ namespace SPWare.VirtualSoundCanvas
             _settings.Mt32Volume = Mt32VolumeSlider.Value / 100.0;
             _settings.Sc55Volume = Sc55VolumeSlider.Value / 100.0;
             _settings.AutoStart = AutoStartCheck.IsChecked == true;
+            _settings.CheckForUpdates = UpdateCheck.IsChecked == true;
             _settings.AutoDetectKind = AutoKindCheck.IsChecked == true;
             _settings.Language = LanguageCombo.SelectedIndex switch { 1 => "ko", 2 => "en", _ => "auto" };
 
@@ -828,6 +831,69 @@ namespace SPWare.VirtualSoundCanvas
         }
 
         private System.IO.StreamWriter? _traceWriter;
+        // ---------------------------------------------------------------
+        // 새 버전 안내 (자동 설치는 하지 않고, 있다는 것과 다운로드 페이지만 알려 준다)
+        // ---------------------------------------------------------------
+        private string _updateTag = "";
+
+        private void StartUpdateCheck()
+        {
+            try
+            {
+                if (!_settings.CheckForUpdates) return;
+                var current = UpdateChecker.CurrentVersion();
+                // 지난번에 알게 된 새 버전이 아직 안 깔렸으면 접속 없이 바로 안내한다
+                if (UpdateChecker.IsNewer(_settings.LatestKnownTag, current)) ShowUpdateNotice(_settings.LatestKnownTag);
+
+                var wait = _settings.LastUpdateCheckFailed ? TimeSpan.FromHours(3) : TimeSpan.FromHours(24);
+                var since = DateTime.UtcNow - _settings.LastUpdateCheckUtc;
+                if (since >= TimeSpan.Zero && since < wait) return;   // 최근에 확인했다(시계가 뒤로 갔으면 다시 확인한다)
+                _ = CheckForUpdatesAsync(current);
+            }
+            catch { /* 안내는 덤이다 - 어떤 문제도 앱 동작에 영향을 주지 않는다 */ }
+        }
+
+        private async System.Threading.Tasks.Task CheckForUpdatesAsync(Version current)
+        {
+            try
+            {
+                var (ok, tag) = await UpdateChecker.GetLatestTagAsync();   // 백그라운드에서 최대 5초, 끝나면 UI 스레드로 돌아온다
+                _settings.LastUpdateCheckUtc = DateTime.UtcNow;
+                _settings.LastUpdateCheckFailed = !ok;
+                if (!ok || tag is null) return;
+                _settings.LatestKnownTag = tag;
+                if (UpdateCheck.IsChecked == true && UpdateChecker.IsNewer(tag, current)) ShowUpdateNotice(tag);
+            }
+            catch { }
+        }
+
+        private void ShowUpdateNotice(string tag)
+        {
+            if (UpdateChecker.ParseTag(tag) is null) return;
+            _updateTag = tag;
+            UpdateText.Text = Loc.T($"새 버전 {tag}이(가) 나왔습니다 (지금 v{UpdateChecker.CurrentVersion()}). ");
+            UpdateLink.Inlines.Clear();
+            UpdateLink.Inlines.Add(new System.Windows.Documents.Run(Loc.T("다운로드 페이지 열기")));
+            UpdateNotice.Visibility = Visibility.Visible;
+        }
+
+        private void OnUpdateCheckChanged(object sender, RoutedEventArgs e)
+        {
+            if (!_uiReady) return;
+            if (UpdateCheck.IsChecked != true) UpdateNotice.Visibility = Visibility.Collapsed;
+            else if (UpdateChecker.IsNewer(_settings.LatestKnownTag, UpdateChecker.CurrentVersion())) ShowUpdateNotice(_settings.LatestKnownTag);
+        }
+
+        private void OnUpdateLinkClick(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (UpdateChecker.ParseTag(_updateTag) is null) return;
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(UpdateChecker.ReleasePageUrl(_updateTag)) { UseShellExecute = true });
+            }
+            catch { Log("다운로드 페이지를 열지 못했습니다. GitHub의 SPWare-WindSound Releases 페이지를 직접 여세요."); }
+        }
+
         private int _stateSaveTick;
         private int _stateSaving;
 

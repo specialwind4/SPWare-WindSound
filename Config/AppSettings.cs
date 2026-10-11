@@ -84,6 +84,15 @@ namespace SPWare.VirtualSoundCanvas.Config
         /// <summary>시작할 때 자동으로 연결/재생을 시작할지.</summary>
         public bool AutoStart { get; set; } = false;
 
+        // ---- 새 버전 안내(안내만 하고 자동 설치는 하지 않는다) ----
+        /// <summary>하루에 한 번 GitHub에서 최신 릴리스 번호를 확인해 새 버전이 있으면 안내한다.</summary>
+        public bool CheckForUpdates { get; set; } = true;
+        /// <summary>마지막으로 확인을 시도한 시각(UTC). 24시간(실패했으면 3시간) 안에는 다시 접속하지 않는다.</summary>
+        public DateTime LastUpdateCheckUtc { get; set; } = DateTime.MinValue;
+        public bool LastUpdateCheckFailed { get; set; } = false;
+        /// <summary>마지막으로 확인된 최신 릴리스 태그. 다음 실행 때는 접속 없이 이 값으로 안내한다.</summary>
+        public string LatestKnownTag { get; set; } = "";
+
         // ------------------------------------------------------------------
 
         // 이 폴더 이름을 원본(SPWare.VirtualSoundCanvas)과 다르게 둔다 - 같은 이름을 쓰면 같은
