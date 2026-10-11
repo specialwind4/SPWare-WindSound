@@ -56,7 +56,10 @@ namespace SPWare.VirtualSoundCanvas
             if (!createdNew)
             {
                 ActivateRunningInstance();
-                Shutdown(0);
+                // 여기서 바로 프로세스를 끝낸다(Shutdown이 아니라). Shutdown으로 끝내면 StartupUri의 메인 창이 그래도 만들어졌다가
+                // 화면 설정을 읽기도 전에 닫히면서 빈 화면 상태(자동 시작 꺼짐, MIDI 입력 없음)를 settings.json에 저장해 버렸다
+                // (2026-10-11 확인: 켜 둔 채 한 번 더 실행하면 설정이 망가졌다). 이 프로세스는 아무것도 열지 않았으므로 바로 끝내도 된다.
+                Environment.Exit(0);
                 return;
             }
 

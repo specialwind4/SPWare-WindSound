@@ -877,6 +877,7 @@ namespace SPWare.VirtualSoundCanvas
             // 각 단계가 서로의 실패에 막히지 않게 따로 감싼다(설정 저장이 실패해도 엔진 정리는 해야 한다).
             try
             {
+                if (!_uiReady) throw new OperationCanceledException();   // 화면에 설정을 다 올리기 전에 닫혔다: 빈 화면 값으로 덮어쓰지 않는다
                 SaveWindowSize();
                 _settings.Mt32MasterVolume = Mt32Panel.MasterVolume;
                 int contrast = _sc55.GetLcdContrast();
