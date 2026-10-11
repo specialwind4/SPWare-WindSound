@@ -110,6 +110,19 @@ namespace SPWare.VirtualSoundCanvas
                 MidiKind.GmGs => _sc55,
                 _ => null,
             };
+            // 진단용 MIDI 기록: 설정 폴더에 midi_trace.on 파일이 있을 때만 midi_trace.log에 남긴다(평소에는 꺼져 있다).
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(Config.AppSettings.SettingsPath)!;
+                if (System.IO.File.Exists(System.IO.Path.Combine(dir, "midi_trace.on")))
+                {
+                    _traceWriter = new System.IO.StreamWriter(System.IO.Path.Combine(dir, "midi_trace.log"), append: true, new System.Text.UTF8Encoding(false)) { AutoFlush = true };
+                    var clock = System.Diagnostics.Stopwatch.StartNew();
+                    _traceWriter.WriteLine($"==== {DateTime.Now:yyyy-MM-dd HH:mm:ss} trace start");
+                    _router.Trace = line => { lock (_traceWriter) _traceWriter.WriteLine($"{clock.ElapsedMilliseconds,9} {line}"); };
+                }
+            }
+            catch { _router.Trace = null; }
             // 지난번에 꺼질 때(또는 다른 버전 앱이 꺼질 때) 저장된 곡 설정을 불러온다. 엔진이 열리면 RestoreTo가 그 엔진에 보낸다.
             try { var savedState = MidiStateStore.Load(); if (savedState != null) _router.ImportState(savedState, TimeSpan.FromHours(12)); } catch { }
             _router.KindChanged += (_, e) =>
@@ -814,6 +827,7 @@ namespace SPWare.VirtualSoundCanvas
             }
         }
 
+        private System.IO.StreamWriter? _traceWriter;
         private int _stateSaveTick;
         private int _stateSaving;
 
