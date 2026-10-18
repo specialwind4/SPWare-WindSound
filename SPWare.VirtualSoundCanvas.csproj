@@ -16,6 +16,9 @@
     <Product>SPWare Wind Sound</Product>
     <Company>SPWare (Special Wind Software)</Company>
     <Copyright>Copyright © SPWare (Special Wind Software)</Copyright>
+    <!-- 배포 exe에 개발 PC의 폴더 경로가 남지 않게 하고, 파일 속성의 제품 버전에 커밋 번호가 붙지 않게 한다 -->
+    <PathMap>$(MSBuildProjectDirectory)=C:\src\SPWare.WindSound</PathMap>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- dotnet publish 시 exe 하나로 묶어서 배포하기 위한 옵션 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

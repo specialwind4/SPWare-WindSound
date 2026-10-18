@@ -39,6 +39,7 @@ namespace SPWare.VirtualSoundCanvas
             _settings = AppSettings.Load();
             Loc.Init(_settings.Language);   // 화면 언어는 시작할 때 한 번 정한다
             Loc.TranslateTree(this);        // XAML의 글자를 영어로(한국어면 아무 일도 안 함)
+            Title = $"SPWare Wind Sound v{UpdateChecker.CurrentVersion()}";   // 창 제목에 버전 표시(버전은 어셈블리에서 읽는다)
             MaxHeight = Math.Min(SystemParameters.WorkArea.Height, MaxWindowHeight); // 내용이 이보다 길면 스크롤
             RestoreWindowSize();
             SetupSections();
