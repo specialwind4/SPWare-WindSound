@@ -81,19 +81,32 @@ namespace SPWare.VirtualSoundCanvas.Engines
             }
         }
 
+        public bool IsOpen
+        {
+            get { lock (_sync) return _instance != IntPtr.Zero; }
+        }
+
         public void Open()
         {
+            // 새 인스턴스를 락 밖에서 먼저 만든다(ROM을 읽는 동안 오디오 스레드가 막히지 않게, 실패해도 이전 인스턴스는 그대로).
+            var created = mt32_create(ControlRomPath, PcmRomPath);
+            if (created == IntPtr.Zero)
+            {
+                string detail = GetLastNativeMessage();
+                throw new InvalidOperationException(
+                    $"SPE3 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
+                    $"(CONTROL: {ControlRomPath}, PCM: {PcmRomPath})");
+            }
+
+            IntPtr previous;
             lock (_sync)
             {
-                _instance = mt32_create(ControlRomPath, PcmRomPath);
-                if (_instance == IntPtr.Zero)
-                {
-                    string detail = GetLastNativeMessage();
-                    throw new InvalidOperationException(
-                        $"SPE3 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
-                        $"(CONTROL: {ControlRomPath}, PCM: {PcmRomPath})");
-                }
+                previous = _instance;
+                _instance = created;
+                _lastDisplayText = "";   // 새 인스턴스의 첫 문구가 같아도 화면이 갱신되게
             }
+            // 이미 열려 있었으면(시작 버튼 재클릭, ROM 세트 바꾸기) 이전 것을 닫는다 - 안 닫으면 네이티브 인스턴스가 쌓인다.
+            if (previous != IntPtr.Zero) mt32_destroy(previous);
         }
 
         private void PlayShort(int status, int d1, int d2)

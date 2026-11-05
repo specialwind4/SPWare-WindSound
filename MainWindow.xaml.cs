@@ -19,6 +19,7 @@ namespace SPWare.VirtualSoundCanvas
         private readonly Mt32Engine _mt32 = new();
         private readonly Sc55Engine _sc55 = new();
         private RawMidiIn? _midiIn;
+        private int _midiInIndex = -1;   // _midiIn이 연결된 장치 번호(열기에 성공했을 때만 기록)
 
         // 엔진들이 만든 소리를 실제 스피커로 내보내는 부분.
         private readonly EngineAudioMixer _mixer = new();
@@ -576,6 +577,10 @@ namespace SPWare.VirtualSoundCanvas
             StartMidiInput();
         }
 
+        /// <summary>지금 이 엔진이 MIDI를 받고 있는가(기본 엔진이거나 MIDI 종류가 이 엔진의 것).</summary>
+        private bool IsRoutedTo(ISynthEngine engine, MidiKind kind) =>
+            ReferenceEquals(_router.ActiveEngine, engine) || _router.CurrentKind == kind;
+
         private void StartMt32()
         {
             try
@@ -588,7 +593,7 @@ namespace SPWare.VirtualSoundCanvas
                 }
 
                 bool isCm32L = RomSetCombo.SelectedIndex == 2;
-                _mt32.RomSet = RomSetCombo.SelectedIndex switch
+                var romSet = RomSetCombo.SelectedIndex switch
                 {
                     1 => Mt32RomSet.Mt32New,
                     2 => Mt32RomSet.Cm32L,
@@ -608,14 +613,37 @@ namespace SPWare.VirtualSoundCanvas
                     return;
                 }
 
+                // 시작 버튼을 다시 눌렀는데 ROM 세트도 폴더도 그대로면 건드리지 않는다(다시 열면 게임이 보낸 설정이 사라진다).
+                bool reopen = _mt32.IsOpen;
+                if (reopen && _mt32.RomSet == romSet &&
+                    string.Equals(_mt32.ControlRomPath, control, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(_mt32.PcmRomPath, pcm, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log($"SPE3: ROM 세트({romSet})가 그대로라서 다시 열지 않습니다");
+                    return;
+                }
+
                 Log($"MT-32 ROM 발견 - CONTROL: {Path.GetFileName(control)}, PCM: {Path.GetFileName(pcm)}");
 
+                var (prevSet, prevControl, prevPcm) = (_mt32.RomSet, _mt32.ControlRomPath, _mt32.PcmRomPath);
+                _mt32.RomSet = romSet;
                 _mt32.ControlRomPath = control;
                 _mt32.PcmRomPath = pcm;
-                _mt32.Open();
+                try { _mt32.Open(); }
+                catch
+                {
+                    // 새 ROM을 못 열었으면 이전 인스턴스가 그대로 살아 있다: 설정값도 되돌려야 다음 시작 때 "그대로"로 오해하지 않는다.
+                    (_mt32.RomSet, _mt32.ControlRomPath, _mt32.PcmRomPath) = (prevSet, prevControl, prevPcm);
+                    throw;
+                }
                 if (_router.RestoreTo(_mt32)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE3)");
-                _mt32.SetMasterVolume(_settings.Mt32MasterVolume);   // 지난번 노브 위치 복원(액정 Vol도 따라 바뀐다)
-                Mt32Panel.SetMasterVolume(_settings.Mt32MasterVolume);
+                // 엔진이 열린 뒤, 지금 이 엔진으로 MIDI가 가고 있으면 연주 중인 곡/게임이 보낸 설정(SysEx, 음색, 음량)과 눌린 음을 새 엔진에 보낸다.
+                // 켜진 채로 다시 연 경우뿐 아니라, 게임이 먼저 연주 중일 때 처음 여는 경우도 해당한다(안 보내면 소리가 비거나 다른 음색으로 난다).
+                else if (IsRoutedTo(_mt32, MidiKind.Mt32) && _router.ReplayStateTo(_mt32))
+                    Log("SPE3: 지금 재생 중이던 설정을 이어받았습니다");
+                int volume = reopen ? Mt32Panel.MasterVolume : _settings.Mt32MasterVolume;   // 다시 열 때는 지금 노브 위치, 처음 켤 때는 지난번 위치
+                _mt32.SetMasterVolume(volume);   // 액정 Vol도 따라 바뀐다
+                Mt32Panel.SetMasterVolume(volume);
                 Log($"SPE3 엔진 초기화 완료 ({_mt32.RomSet}) - {Mt32Engine.GetLastNativeMessage()}");
                 Log("  └ 참고: 실기는 기본 상태에서 MIDI 채널 1번(0-based 0)에 파트가 " +
                     "배정되어 있지 않습니다. 채널 2번 이상으로 테스트해보세요.");
@@ -726,14 +754,28 @@ namespace SPWare.VirtualSoundCanvas
                     return;
                 }
 
+                // 시작 버튼을 다시 눌렀는데 폴더가 그대로면 건드리지 않는다(다시 부팅하면 몇 초 멈추고 곡이 보낸 설정이 사라진다).
+                bool reopen = _sc55.IsOpen;
+                if (reopen && string.Equals(_sc55.RomDirectory, folder, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log("SPE5: 이미 켜져 있어서 다시 부팅하지 않습니다");
+                    return;
+                }
+
                 // 시작 전에 파일 5개의 크기를 찍어둡니다. 크기가 0이거나 표준과
                 // 다르면 그 자체로 원인이 드러납니다(덤프 손상, 다른 기종 등).
                 LogSc55RomSizes(folder);
                 Log("  └ SPE5 펌웨어 부팅 중... (몇 초 걸립니다)");
 
+                string prevDir55 = _sc55.RomDirectory;
                 _sc55.RomDirectory = folder;
-                _sc55.Open();
+                try { _sc55.Open(); }
+                catch { _sc55.RomDirectory = prevDir55; throw; }   // 못 열었으면(이전 인스턴스가 남은 경우) 다음 시작 때 "그대로"로 오해하지 않게 되돌린다
                 if (_router.RestoreTo(_sc55)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE5)");
+                // 엔진이 열린 뒤, 지금 이 엔진으로 MIDI가 가고 있으면 연주 중인 곡/게임이 보낸 설정(SysEx, 음색, 음량)과 눌린 음을 새 엔진에 보낸다.
+                // 켜진 채로 다시 연 경우뿐 아니라, 게임이 먼저 연주 중일 때 처음 여는 경우도 해당한다(안 보내면 소리가 비거나 다른 음색으로 난다).
+                else if (IsRoutedTo(_sc55, MidiKind.GmGs) && _router.ReplayStateTo(_sc55))
+                    Log("SPE5: 지금 재생 중이던 설정을 이어받았습니다");
                 Log($"SPE5 엔진 초기화 완료 - {Sc55Engine.GetLastNativeMessage()}");
                 if (_settings.Sc55LcdContrast is >= 1 and <= 16)
                 {
@@ -818,11 +860,16 @@ namespace SPWare.VirtualSoundCanvas
                     return;
                 }
 
-                _midiIn?.Dispose(); // 재시작 시 이전 연결 정리
+                // 같은 포트에 이미 연결돼 있으면 그대로 둔다(다시 열면 그 사이에 오는 MIDI가 빠진다).
+                if (_midiIn != null && _midiInIndex == MidiInCombo.SelectedIndex) return;
+
+                _midiInIndex = -1;
+                _midiIn?.Dispose(); // 다른 포트로 바꿨을 때 이전 연결 정리
                 _midiIn = new RawMidiIn();
                 _midiIn.ShortMessageReceived += (_, m) => _router.HandleShortMessage(m.status, m.data1, m.data2);
                 _midiIn.SysExReceived += (_, data) => _router.HandleSysEx(data);
                 _midiIn.Open(MidiInCombo.SelectedIndex);
+                _midiInIndex = MidiInCombo.SelectedIndex;
                 Log("가상 MIDI 입력 연결 완료 - 대기 중 (SysEx 포함)");
             }
             catch (Exception ex)

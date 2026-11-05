@@ -93,6 +93,11 @@ namespace SPWare.VirtualSoundCanvas.Engines
 
         public string RomDirectory { get; set; } = "";
 
+        public bool IsOpen
+        {
+            get { lock (_sync) return _instance != IntPtr.Zero; }
+        }
+
         public void Open()
         {
             var missing = Array.FindAll(RequiredRomFiles,
@@ -103,6 +108,8 @@ namespace SPWare.VirtualSoundCanvas.Engines
 
             if (BootSteps > 0) sc55_set_boot_steps(BootSteps);
 
+            Dispose(); // 이미 열려 있으면(시작 버튼 재클릭 등) 이전 인스턴스를 먼저 닫는다(백업 SRAM도 저장) - 네이티브 누수 방지
+
             // 이 호출은 펌웨어 부팅 때문에 몇 초 걸립니다(동기 호출).
             _instance = sc55_create(RomDirectory);
             if (_instance == IntPtr.Zero)
@@ -111,6 +118,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
                 throw new InvalidOperationException(
                     $"SPE5 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} (경로: {RomDirectory})");
             }
+            lock (_sync) WakeUp();   // 새 인스턴스는 쉬는 상태로 시작하지 않는다(이전 인스턴스가 무음으로 쉬고 있었어도)
             LcdTextChanged?.Invoke(this, "SPE5  Ready.");
         }
 

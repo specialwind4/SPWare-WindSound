@@ -504,7 +504,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// 보낼 구간: 대상 엔진의 반대 계열로 밝혀진 구간이 아닌 가장 최근 구간(없으면 지금 구간). SysEx는 대상 엔진 종류에 맞는 것만 거르고,
         /// 순서는 원래 도착한 순서 그대로다.
         /// </summary>
-        public void ReplayStateTo(ISynthEngine target) => ReplayStateTo(target, KindOf(target));
+        public bool ReplayStateTo(ISynthEngine target) => ReplayStateTo(target, KindOf(target));
 
         // ---- 지금 눌려 있는 음 ----
         // 손으로 엔진을 바꾸면 이전 엔진의 소리는 끄는데(노트 오프를 새 엔진이 받아 줄 수 없어서), 길게 끄는 음(원숭이섬 타이틀처럼)은
@@ -535,13 +535,15 @@ namespace SPWare.VirtualSoundCanvas.Midi
             if (Trace != null && count > 0) T($"HELD resent {count} notes -> {target.Name}");
         }
 
-        public void ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null)
+        /// <summary>보낼 설정이 있어서 보냈으면 true(보낼 것이 없어 건너뛰었으면 false).</summary>
+        public bool ReplayStateTo(ISynthEngine target, MidiKind kind, int? onlyChannel = null)
         {
-            ReplayStateToCore(target, kind, onlyChannel);
+            bool sent = ReplayStateToCore(target, kind, onlyChannel);
             ResendHeld(target, onlyChannel);
+            return sent;
         }
 
-        private void ReplayStateToCore(ISynthEngine target, MidiKind kind, int? onlyChannel)
+        private bool ReplayStateToCore(ISynthEngine target, MidiKind kind, int? onlyChannel)
         {
             Journal j;
             lock (_replayLock)
@@ -562,11 +564,12 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     else if (!Cur.HasContent)
                     {
                         if (Trace != null) T($"REPLAY skipped -> {target.Name}: nothing to carry over");
-                        return;
+                        return false;
                     }
                 }
             }
             ReplayJournal(target, kind, j, onlyChannel);
+            return true;
         }
 
         private void ReplayJournal(ISynthEngine target, MidiKind kind, Journal j, int? onlyChannel)
