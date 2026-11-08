@@ -166,6 +166,20 @@ namespace SPWare.VirtualSoundCanvas.UI
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 엔진을 새로 열었을 때(ROM 세트를 바꿈 등): 새 인스턴스는 파트 음량이 모두 100이고 액정도 엔진 기본 화면이므로,
+        /// 패널이 기억하던 파트 선택/음량 모드/파트 음량도 처음 상태로 맞춘다. 마스터 볼륨 값은 그대로 둔다.
+        /// </summary>
+        public void ForgetPartState()
+        {
+            for (int i = 1; i < _partVolumes.Length; i++) _partVolumes[i] = 100;
+            _selectedPart = 0;
+            _volumeArmed = false;
+            _tookOverDisplay = false;
+            Knob.SetValue(_masterVolumeValue);
+            UpdateButtonHighlights();
+        }
+
         // ---- SELECT/VOLUME 노브 = SPE3 마스터 볼륨 ----
         /// <summary>노브를 사용자가 돌렸을 때(1~100). MainWindow가 SPE3에 마스터 볼륨 SysEx를 보낸다.</summary>
         public event Action<int>? MasterVolumeChanged;
@@ -173,11 +187,16 @@ namespace SPWare.VirtualSoundCanvas.UI
         /// <summary>현재 노브 값(1~100).</summary>
         public int MasterVolume => Knob.Value;
 
+        /// <summary>노브가 지금 파트 음량을 조절 중인가(VOLUME 버튼을 켠 상태). 이때의 액정 문구/노브 값은 마스터 볼륨이 아니다.</summary>
+        public bool IsPartVolumeMode => _volumeArmed && _selectedPart != 0;
+
         /// <summary>바깥(설정 복원 등)에서 노브 모양만 맞춘다(이벤트 없음).</summary>
         public void SetMasterVolume(int value)
         {
             _masterVolumeValue = Math.Clamp(value, 1, 100);
             if (!_volumeArmed) Knob.SetValue(_masterVolumeValue);
+            // 방금 우리가 보낸 값이 엔진에 반영되어 액정에 나올 때까지(엔진이 소리를 만들기 시작해야 SysEx를 처리한다) 옛 액정 값을 따라가지 않는다
+            _lastKnobTick = Environment.TickCount64 + 1500;
         }
 
         private long _lastKnobTick;

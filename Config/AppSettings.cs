@@ -27,12 +27,15 @@ namespace SPWare.VirtualSoundCanvas.Config
         /// <summary>0=구형 SPE3, 1=신형 SPE3, 2=SPE3L</summary>
         public int Mt32RomSetIndex { get; set; } = 0;
 
+        /// <summary>SPE3L 탭에서 SPE3 탭으로 돌아올 때 쓸 SPE3 세트. 0=구형, 1=신형</summary>
+        public int Mt32LastMtRomSetIndex { get; set; } = 0;
+
         /// <summary>MIDI 장치는 인덱스가 아니라 이름으로 저장합니다 - USB 장치를 꽂고 빼면
         /// 인덱스가 밀려서 엉뚱한 장치가 열리기 때문입니다.</summary>
         public string MidiInDeviceName { get; set; } = "";
         public string MidiOutDeviceName { get; set; } = "";
 
-        /// <summary>표시 중이던 장치 탭(화면 전환 전용). 0=SPE3, 1=SPE5</summary>
+        /// <summary>표시 중이던 장치 탭(화면 전환 전용). 0=SPE3 계열(SPE3L 또는 SPE3, ROM 세트로 정해진다), 1=SPE5</summary>
         public int ActiveEngineIndex { get; set; } = 0;
 
         /// <summary>

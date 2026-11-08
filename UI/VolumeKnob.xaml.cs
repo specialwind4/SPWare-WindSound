@@ -42,6 +42,17 @@ namespace SPWare.VirtualSoundCanvas.UI
             _tipTimer.Tick += (_, _) => { _tipTimer.Stop(); _tip.IsOpen = false; };
         }
 
+        /// <summary>노브의 색과 표시선 모양을 바꾼다(기본은 SPE3 노브: 무광 검정 + 흰 표시선). 동작은 그대로.</summary>
+        public void SetLook(System.Windows.Media.Brush face, System.Windows.Media.Brush edge,
+                            System.Windows.Media.Brush mark, double markWidth, double markLength)
+        {
+            Face.Fill = face;
+            Face.Stroke = edge;
+            Mark.Fill = mark;
+            Mark.Width = markWidth;
+            Mark.Height = markLength;
+        }
+
         private static double AngleOf(int value) => MinAngle + (value - Min) / (double)(Max - Min) * (MaxAngle - MinAngle);
 
         private static int ValueOf(double angle) =>

@@ -65,10 +65,23 @@ namespace SPWare.VirtualSoundCanvas
             _mixer.AddEngine(_sc55, 1.303f);  // +2.3 dB
 
             // --- 화면 배선 ---
-            _mt32.LcdTextChanged += (_, text) => Mt32Panel.OnEngineLcdTextChanged(this, text);
+            _mt32.LcdTextChanged += (_, text) =>
+            {
+                Mt32Panel.OnEngineLcdTextChanged(this, text);
+                // SPE3L에는 액정이 없어서 볼륨 값만 따라간다. SPE3 패널이 파트 음량 모드일 때의 문구("PART 1 VOL: 50")는 마스터 볼륨이 아니다.
+                if (!Mt32Panel.IsPartVolumeMode)
+                {
+                    Cm32Panel.OnEngineLcdTextChanged(this, text);
+                    ShowMt32VolumeInSlider(Cm32Panel.MasterVolume);   // 게임이 바꾼 볼륨도 설정 슬라이더에 보인다
+                }
+            };
             Mt32Panel.Attach(_router, _mt32);
+            Cm32Panel.Attach(_router, _mt32);   // SPE3L 탭도 같은 엔진(ROM 세트만 다름)이라 같은 노트에 MIDI MESSAGE 램프가 깜박인다
             // SPE3 패널의 SELECT/VOLUME 노브 = SPE3 마스터 볼륨(SysEx). 액정의 Vol 값도 같이 바뀐다.
-            Mt32Panel.MasterVolumeChanged += v => _mt32.SetMasterVolume(v);
+            // SPE3L 패널의 VOLUME 노브도 같은 마스터 볼륨이라 서로의 노브 위치를 맞춰 둔다(탭을 오가도 음량이 그대로).
+            // 설정의 "SPE3" 슬라이더도 이 마스터 볼륨과 같이 움직인다(SPE5 노브와 슬라이더처럼, 양방향).
+            Mt32Panel.MasterVolumeChanged += v => { _mt32.SetMasterVolume(v); Cm32Panel.SetMasterVolume(v); ShowMt32VolumeInSlider(v); };
+            Cm32Panel.MasterVolumeChanged += v => { _mt32.SetMasterVolume(v); Mt32Panel.SetMasterVolume(v); ShowMt32VolumeInSlider(v); };
             // PART로 고른 파트의 음량(VOLUME 버튼 + 노브), 그리고 그때 액정에 띄우는 안내 문구
             Mt32Panel.PartVolumeChanged += (part, v) => _mt32.SetPartVolume(part, v);
             Mt32Panel.CustomMessageRequested += msg => _mt32.ShowCustomMessage(msg);
@@ -92,6 +105,7 @@ namespace SPWare.VirtualSoundCanvas
 
             RomSetCombo.ItemsSource = new[] { Loc.T("구형 MT-32 (1987, v1.07)"), Loc.T("신형 MT-32 (1988, patched)"), "CM-32L (1989, v1.02)" };
             RomSetCombo.SelectionChanged += OnRomSetChanged;
+            RomSetCombo.SelectedIndex = Math.Clamp(_settings.Mt32RomSetIndex, 0, 2);   // 탭을 만들기 전에 저장된 세트를 골라 둔다(처음 탭이 이 세트의 계열이 되도록)
 
             DefaultEngineCombo.ItemsSource = new[] { _mt32.Name, _sc55.Name };
             DefaultEngineCombo.SelectionChanged += (_, _) =>
@@ -150,6 +164,7 @@ namespace SPWare.VirtualSoundCanvas
             {
                 if (++_stateSaveTick >= 30) { _stateSaveTick = 0; SaveMidiStateAsync(); }
                 _mt32.PollDisplayState();
+                Cm32Panel.SetPowered(_mt32.IsOpen);   // POWER 램프: 엔진이 열려 있으면 켜짐
                 _sc55.PollStatusText();
             };
             _displayPollTimer.Start();
@@ -277,7 +292,11 @@ namespace SPWare.VirtualSoundCanvas
             Sc55RomPathBox.Text = _settings.Sc55RomFolder;
 
             MasterVolumeSlider.Value = _settings.MasterVolume * 100;
-            Mt32VolumeSlider.Value = _settings.Mt32Volume * 100;
+            // SPE3 슬라이더 = SPE3L/SPE3 노브 = 마스터 볼륨(SysEx). 예전 설정의 믹서 음량(Mt32Volume)은 곱해서 이어받아 소리 크기가 그대로다.
+            int mt32Volume = (int)Math.Round(Math.Clamp(_settings.Mt32Volume * _settings.Mt32MasterVolume, 1, 100));
+            Mt32VolumeSlider.Value = mt32Volume;
+            Mt32Panel.SetMasterVolume(mt32Volume);
+            Cm32Panel.SetMasterVolume(mt32Volume);
             Sc55VolumeSlider.Value = _settings.Sc55Volume * 100;
             AutoStartCheck.IsChecked = _settings.AutoStart;
             UpdateCheck.IsChecked = _settings.CheckForUpdates;
@@ -312,9 +331,7 @@ namespace SPWare.VirtualSoundCanvas
             }
 
             // 탭/맵 복원
-            var tabs = EngineTabGrid.Children.OfType<RadioButton>().ToList();
-            int idx = Math.Clamp(_settings.ActiveEngineIndex, 0, tabs.Count - 1);
-            if (tabs.Count > idx) tabs[idx].IsChecked = true;
+            _tabs[TabForEngineIndex(Math.Clamp(_settings.ActiveEngineIndex, 0, 1))].IsChecked = true;
 
             ApplyVolumes();
         }
@@ -326,7 +343,8 @@ namespace SPWare.VirtualSoundCanvas
             _settings.Sc55RomFolder = Sc55RomPathBox.Text;
 
             _settings.MasterVolume = MasterVolumeSlider.Value / 100.0;
-            _settings.Mt32Volume = Mt32VolumeSlider.Value / 100.0;
+            _settings.Mt32Volume = 1.0;   // 예전의 믹서 음량 칸: 지금은 슬라이더가 마스터 볼륨이라 1로 고정(아래 Mt32MasterVolume에 저장)
+            _settings.Mt32MasterVolume = Math.Clamp((int)Math.Round(Mt32VolumeSlider.Value), 0, 100);
             _settings.Sc55Volume = Sc55VolumeSlider.Value / 100.0;
             _settings.AutoStart = AutoStartCheck.IsChecked == true;
             _settings.CheckForUpdates = UpdateCheck.IsChecked == true;
@@ -364,24 +382,69 @@ namespace SPWare.VirtualSoundCanvas
         // 탭
         // ---------------------------------------------------------------
 
+        /// <summary>
+        /// 탭 3개. SPE3L과 SPE3는 같은 엔진(mt32emu)에 다른 ROM 세트를 올린 것이라, 이 둘의 탭은 ROM 세트 선택과 한 몸이다:
+        /// SPE3L 탭 = CM-32L 세트, SPE3 탭 = 구형/신형 MT-32 세트(마지막으로 쓴 쪽). ROM 세트 목록을 바꾸면 탭도 따라간다.
+        /// </summary>
+        private enum DeviceTab { Cm32L, Mt32, Sc55 }
+
+        private readonly System.Collections.Generic.Dictionary<DeviceTab, RadioButton> _tabs = new();
+        private bool _restoringRomSet;   // 새 ROM 세트를 못 열어 목록을 되돌리는 중(되돌리는 변경을 다시 적용하지 않는다)
+
+        /// <summary>지금 고른 ROM 세트가 속한 SPE3 계열 탭(CM-32L 세트면 SPE3L 탭, 아니면 SPE3 탭).</summary>
+        private DeviceTab Mt32FamilyTab => RomSetCombo.SelectedIndex == 2 ? DeviceTab.Cm32L : DeviceTab.Mt32;
+
+        private DeviceTab TabForEngineIndex(int engineIndex) => engineIndex switch
+        {
+            1 => DeviceTab.Sc55,
+            _ => Mt32FamilyTab,
+        };
+
+        private static int RomSetIndexOf(Mt32RomSet set) => set switch
+        {
+            Mt32RomSet.Mt32New => 1,
+            Mt32RomSet.Cm32L => 2,
+            _ => 0,
+        };
+
         private void BuildEngineTabs()
         {
-            AddEngineTab("SPE3", _mt32, isDefault: true);
-            AddEngineTab("SPE5", _sc55, isDefault: false);
+            var first = Mt32FamilyTab;
+            AddEngineTab("SPE3L", DeviceTab.Cm32L, first);
+            AddEngineTab("SPE3", DeviceTab.Mt32, first);
+            AddEngineTab("SPE5", DeviceTab.Sc55, first);
         }
 
-        private void AddEngineTab(string label, ISynthEngine engine, bool isDefault)
+        private void AddEngineTab(string label, DeviceTab device, DeviceTab initial)
         {
             var tab = new RadioButton
             {
                 Content = label,
                 GroupName = "EngineTab",
                 Style = (Style)FindResource("EngineTab"),
-                IsChecked = isDefault,
+                IsChecked = device == initial,
             };
-            tab.Checked += (_, _) => ShowEngine(engine);
+            tab.Checked += (_, _) => OnDeviceTabChecked(device);
             EngineTabGrid.Children.Add(tab);
-            if (isDefault) ShowEngine(engine);
+            _tabs[device] = tab;
+            if (device == initial) ShowDevice(device);
+        }
+
+        private void OnDeviceTabChecked(DeviceTab device)
+        {
+            ShowDevice(device);
+            if (device is DeviceTab.Cm32L or DeviceTab.Mt32) OnMt32FamilyTabChosen(device == DeviceTab.Cm32L);
+        }
+
+        /// <summary>
+        /// SPE3L / SPE3 탭을 눌렀을 때: 그 계열의 ROM 세트로 바꾼다(목록을 바꾸면 OnRomSetChanged가 이미 시작된 엔진에도 바로 적용한다).
+        /// 이미 그 계열의 세트면(예: 신형 세트 상태에서 SPE3 탭) 목록을 건드리지 않는다.
+        /// </summary>
+        private void OnMt32FamilyTabChosen(bool cm32L)
+        {
+            if (!_uiReady || _restoringRomSet) return;
+            if (cm32L == (RomSetCombo.SelectedIndex == 2)) return;
+            RomSetCombo.SelectedIndex = cm32L ? 2 : Math.Clamp(_settings.Mt32LastMtRomSetIndex, 0, 1);
         }
 
         /// <summary>
@@ -393,19 +456,21 @@ namespace SPWare.VirtualSoundCanvas
         /// 넘어갑니다. 그 전달 대상이 입력으로 쓰는 loopMIDI 포트와 같으면
         /// 들어온 MIDI가 같은 포트로 되돌아가 무한 루프가 됩니다. 화면 전환이
         /// 소리 경로를 바꾸는 것 자체가 예상 밖의 동작이라 분리했습니다.
+        /// (SPE3L/SPE3 탭이 바꾸는 것은 SPE3 엔진의 ROM 세트뿐이다 - 위 OnMt32FamilyTabChosen. 소리 경로는 그대로.)
         /// </summary>
-        private void ShowEngine(ISynthEngine engine)
+        private void ShowDevice(DeviceTab device)
         {
-            Mt32Panel.Visibility = engine == _mt32 ? Visibility.Visible : Visibility.Collapsed;
-            Sc55Panel.Visibility = engine == _sc55 ? Visibility.Visible : Visibility.Collapsed;
+            Cm32Panel.Visibility = device == DeviceTab.Cm32L ? Visibility.Visible : Visibility.Collapsed;
+            Mt32Panel.Visibility = device == DeviceTab.Mt32 ? Visibility.Visible : Visibility.Collapsed;
+            Sc55Panel.Visibility = device == DeviceTab.Sc55 ? Visibility.Visible : Visibility.Collapsed;
 
-            // 장치별 전용 설정 카드도 같이 전환합니다.
-            RomSetCard.Visibility = engine == _mt32 ? Visibility.Visible : Visibility.Collapsed;
+            // 장치별 전용 설정 카드도 같이 전환합니다(ROM 세트 카드는 SPE3L/SPE3 두 탭이 함께 쓴다).
+            RomSetCard.Visibility = device is DeviceTab.Cm32L or DeviceTab.Mt32 ? Visibility.Visible : Visibility.Collapsed;
             FitWindowToContent();
-            Sc55RomCard.Visibility = engine == _sc55 ? Visibility.Visible : Visibility.Collapsed;
+            Sc55RomCard.Visibility = device == DeviceTab.Sc55 ? Visibility.Visible : Visibility.Collapsed;
 
             if (_uiReady)
-                _settings.ActiveEngineIndex = engine == _sc55 ? 1 : 0;
+                _settings.ActiveEngineIndex = device == DeviceTab.Sc55 ? 1 : 0;
         }
 
         // ---------------------------------------------------------------
@@ -427,8 +492,39 @@ namespace SPWare.VirtualSoundCanvas
         private void OnRomSetChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_uiReady) return;
-            _settings.Mt32RomSetIndex = Math.Max(RomSetCombo.SelectedIndex, 0);
+            int index = Math.Max(RomSetCombo.SelectedIndex, 0);
+            _settings.Mt32RomSetIndex = index;
+            if (index < 2) _settings.Mt32LastMtRomSetIndex = index;
             Mt32RomPathBox.Text = _settings.GetMt32Folder();
+
+            // 목록을 직접 바꿨으면 화면의 탭도 그 계열(SPE3L / SPE3)로 맞춘다. 다른 장치 탭을 보는 중이면 건드리지 않는다.
+            var family = Mt32FamilyTab;
+            if (_tabs[DeviceTab.Cm32L].IsChecked == true || _tabs[DeviceTab.Mt32].IsChecked == true)
+                _tabs[family].IsChecked = true;
+
+            // 이미 시작된 엔진이면 바로 새 세트로 바꾼다(시작 전이면 시작 버튼이 반영한다).
+            if (!_restoringRomSet && _mt32.IsOpen) ApplyRomSetToOpenEngine();
+        }
+
+        /// <summary>
+        /// 열려 있는 SPE3 엔진을 목록에서 고른 ROM 세트로 다시 연다(StartMt32가 재생 중인 곡/게임의 설정도 새 엔진에 이어 준다).
+        /// 새 세트를 못 열었으면(ROM 폴더가 비었거나 파일이 없음) 엔진은 이전 세트 그대로이므로, 목록과 탭도 그 세트로 되돌린다.
+        /// 목록의 변경 이벤트 안에서 부르므로 이 호출이 마지막 일이어야 한다.
+        /// </summary>
+        private void ApplyRomSetToOpenEngine()
+        {
+            int wanted = RomSetCombo.SelectedIndex;
+            StartMt32();
+            if (!_mt32.IsOpen) return;
+            int actual = RomSetIndexOf(_mt32.RomSet);
+            if (actual == wanted) return;
+
+            string[] names = { Loc.T("구형 MT-32"), Loc.T("신형 MT-32"), "CM-32L" };
+            Log(string.Format(Loc.T("{0}(으)로 바꾸지 못했습니다 - 위 메시지를 확인하세요. {1}을(를) 그대로 씁니다"),
+                names[Math.Clamp(wanted, 0, 2)], names[Math.Clamp(actual, 0, 2)]));
+            _restoringRomSet = true;
+            try { RomSetCombo.SelectedIndex = actual; }
+            finally { _restoringRomSet = false; }
         }
 
         private void OnBrowseMt32Rom(object sender, RoutedEventArgs e)
@@ -459,16 +555,35 @@ namespace SPWare.VirtualSoundCanvas
             return dlg.ShowDialog() == true ? dlg.FolderName : null;
         }
 
+        private bool _syncingMt32Volume;   // 노브가 슬라이더를 움직이는 동안, 그 변경이 다시 엔진으로 가지 않게
+
         private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (!_uiReady) return;
             ApplyVolumes();
+            // SPE3 슬라이더를 움직이면 마스터 볼륨(SysEx)과 두 패널의 노브가 따라간다
+            if (ReferenceEquals(sender, Mt32VolumeSlider) && !_syncingMt32Volume)
+            {
+                int v = Math.Clamp((int)Math.Round(Mt32VolumeSlider.Value), 0, 100);
+                _mt32.SetMasterVolume(v);
+                Mt32Panel.SetMasterVolume(v);
+                Cm32Panel.SetMasterVolume(v);
+            }
+        }
+
+        /// <summary>노브(또는 게임이 보낸 볼륨)가 바뀌었을 때 설정의 SPE3 슬라이더를 같은 값으로 옮긴다.</summary>
+        private void ShowMt32VolumeInSlider(int volume)
+        {
+            if (Math.Abs(Mt32VolumeSlider.Value - volume) < 0.5) return;
+            _syncingMt32Volume = true;
+            try { Mt32VolumeSlider.Value = volume; }
+            finally { _syncingMt32Volume = false; }
         }
 
         private void ApplyVolumes()
         {
             _mixer.MasterVolume = (float)(MasterVolumeSlider.Value / 100.0);
-            _mixer.SetEngineVolume(_mt32, (float)(Mt32VolumeSlider.Value / 100.0));
+            _mixer.SetEngineVolume(_mt32, 1f);   // SPE3/SPE3L 음량은 슬라이더 = 노브 = 마스터 볼륨(SysEx)이 맡는다: 믹서에서 또 줄이면 두 번 줄어든다
             _mixer.SetEngineVolume(_sc55, (float)(Sc55VolumeSlider.Value / 100.0));
 
             MasterVolumeText.Text = ((int)MasterVolumeSlider.Value).ToString();
@@ -533,8 +648,7 @@ namespace SPWare.VirtualSoundCanvas
                     }
                     else
                     {
-                        var tabs = EngineTabGrid.Children.OfType<RadioButton>().ToList();
-                        if (engineIndex < tabs.Count) tabs[engineIndex].IsChecked = true;
+                        _tabs[TabForEngineIndex(engineIndex)].IsChecked = true;
                     }
                 }
                 _settings.MidiKindIndex = (int)kind;
@@ -588,7 +702,7 @@ namespace SPWare.VirtualSoundCanvas
                 string folder = Mt32RomPathBox.Text;
                 if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
                 {
-                    Log("SPE3 건너뜀: MT-32 ROM 폴더가 지정되지 않았습니다 (SPE3 탭에서 폴더를 고르세요)");
+                    Log("SPE3 건너뜀: MT-32 ROM 폴더가 지정되지 않았습니다 (SPE3L / SPE3 탭의 ROM 세트에서 폴더를 고르세요)");
                     return;
                 }
 
@@ -641,9 +755,11 @@ namespace SPWare.VirtualSoundCanvas
                 // 켜진 채로 다시 연 경우뿐 아니라, 게임이 먼저 연주 중일 때 처음 여는 경우도 해당한다(안 보내면 소리가 비거나 다른 음색으로 난다).
                 else if (IsRoutedTo(_mt32, MidiKind.Mt32) && _router.ReplayStateTo(_mt32))
                     Log("SPE3: 지금 재생 중이던 설정을 이어받았습니다");
-                int volume = reopen ? Mt32Panel.MasterVolume : _settings.Mt32MasterVolume;   // 다시 열 때는 지금 노브 위치, 처음 켤 때는 지난번 위치
+                if (reopen) Mt32Panel.ForgetPartState();   // 새 인스턴스는 파트 음량이 모두 100: 패널이 기억하던 파트 음량/선택도 처음으로
+                int volume = Math.Clamp((int)Math.Round(Mt32VolumeSlider.Value), 0, 100);   // 슬라이더 = 노브(지난번 위치를 불러왔거나 지금 위치)
                 _mt32.SetMasterVolume(volume);   // 액정 Vol도 따라 바뀐다
                 Mt32Panel.SetMasterVolume(volume);
+                Cm32Panel.SetMasterVolume(volume);
                 Log($"SPE3 엔진 초기화 완료 ({_mt32.RomSet}) - {Mt32Engine.GetLastNativeMessage()}");
                 Log("  └ 참고: 실기는 기본 상태에서 MIDI 채널 1번(0-based 0)에 파트가 " +
                     "배정되어 있지 않습니다. 채널 2번 이상으로 테스트해보세요.");
@@ -993,7 +1109,6 @@ namespace SPWare.VirtualSoundCanvas
             {
                 if (!_uiReady) throw new OperationCanceledException();   // 화면에 설정을 다 올리기 전에 닫혔다: 빈 화면 값으로 덮어쓰지 않는다
                 SaveWindowSize();
-                _settings.Mt32MasterVolume = Mt32Panel.MasterVolume;
                 int contrast = _sc55.GetLcdContrast();
                 if (contrast >= 1) _settings.Sc55LcdContrast = contrast; // 펌웨어 메뉴에서 맞춘 LCD 대비 기억
                 CaptureUiToSettings();
