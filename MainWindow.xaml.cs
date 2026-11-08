@@ -81,6 +81,7 @@ namespace SPWare.VirtualSoundCanvas
             // SPE3L 패널의 VOLUME 노브도 같은 마스터 볼륨이라 서로의 노브 위치를 맞춰 둔다(탭을 오가도 음량이 그대로).
             // 설정의 "SPE3" 슬라이더도 이 마스터 볼륨과 같이 움직인다(SPE5 노브와 슬라이더처럼, 양방향).
             Mt32Panel.MasterVolumeChanged += v => { _mt32.SetMasterVolume(v); Cm32Panel.SetMasterVolume(v); ShowMt32VolumeInSlider(v); };
+            Cm32Panel.PowerToggleRequested += OnCm32PowerToggle;
             Cm32Panel.MasterVolumeChanged += v => { _mt32.SetMasterVolume(v); Mt32Panel.SetMasterVolume(v); ShowMt32VolumeInSlider(v); };
             // PART로 고른 파트의 음량(VOLUME 버튼 + 노브), 그리고 그때 액정에 띄우는 안내 문구
             Mt32Panel.PartVolumeChanged += (part, v) => _mt32.SetPartVolume(part, v);
@@ -676,6 +677,24 @@ namespace SPWare.VirtualSoundCanvas
                 KindCombo.SelectedIndex = 0;
                 _applyingKind = false;
             }
+        }
+
+        /// <summary>
+        /// 패널의 전원 스위치. 끄면 SPE3을 닫아서(CM-32L/MT-32 두 패널이 같은 엔진이다) 소리도 MIDI 램프도 멈추고,
+        /// 켜면 지금 고른 ROM 세트로 다시 연다(재생 중이던 곡 설정은 이어받는다). 시작 버튼도 같은 방식으로 켠다.
+        /// </summary>
+        private void OnCm32PowerToggle(bool on)
+        {
+            if (on)
+            {
+                StartMt32();
+            }
+            else if (_mt32.IsOpen)
+            {
+                _mt32.Dispose();
+                Log("SPE3 전원을 껐습니다 (다시 켜려면 전원 스위치나 시작 버튼)");
+            }
+            Cm32Panel.SetPowered(_mt32.IsOpen);
         }
 
         private void OnStart(object sender, RoutedEventArgs e) => StartAll();

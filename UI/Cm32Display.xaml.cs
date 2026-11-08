@@ -32,8 +32,12 @@ namespace SPWare.VirtualSoundCanvas.UI
                 _lastKnobTick = Environment.TickCount64;
                 MasterVolumeChanged?.Invoke(v);
             };
+            SwitchHit.MouseLeftButtonUp += (_, _) => PowerToggleRequested?.Invoke(!_powered);
             ApplyLeds();
         }
+
+        /// <summary>전원 스위치를 눌렀을 때. 인수는 바라는 상태(true = 켜기). 실제로 끄고 켜는 일은 MainWindow가 한다.</summary>
+        public event Action<bool>? PowerToggleRequested;
 
         // ---- VOLUME 노브 = 마스터 볼륨 ----
         /// <summary>노브를 사용자가 돌렸을 때(1~100). MainWindow가 엔진에 마스터 볼륨 SysEx를 보내고 SPE3 패널 노브도 맞춘다.</summary>
@@ -90,10 +94,14 @@ namespace SPWare.VirtualSoundCanvas.UI
 
         private void ApplyLeds()
         {
-            MidiLed.Fill = _midiLit ? MidiOn : MidiOff;
-            MidiLed.Effect = _midiLit
+            bool midiLit = _midiLit && _powered;   // 꺼져 있으면 MIDI가 와도 램프는 꺼진 채
+            MidiLed.Fill = midiLit ? MidiOn : MidiOff;
+            MidiLed.Effect = midiLit
                 ? new DropShadowEffect { Color = Color.FromRgb(0x6C, 0xFF, 0x2A), BlurRadius = 9, ShadowDepth = 0, Opacity = 0.9 }
                 : null;
+            // 스위치: 켜짐 = 막대가 오른쪽(홈이 왼쪽), 꺼짐 = 막대가 왼쪽(홈이 오른쪽)
+            Canvas.SetLeft(SwitchBar, _powered ? 566 : 558);
+            Canvas.SetLeft(SwitchHollow, _powered ? 558 : 597);
             PowerLed.Fill = _powered ? PowerOnBrush : PowerOffBrush;
             PowerLed.Effect = _powered
                 ? new DropShadowEffect { Color = Color.FromRgb(0xFF, 0x40, 0x80), BlurRadius = 9, ShadowDepth = 0, Opacity = 0.9 }

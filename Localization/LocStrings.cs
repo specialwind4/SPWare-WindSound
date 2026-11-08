@@ -15,6 +15,8 @@ namespace SPWare.VirtualSoundCanvas.Localization
             ["MIDI 포트"] = "MIDI port",
             ["MT-32 / CM-32L ROM 세트"] = "MT-32 / CM-32L ROM set",
             ["구형 MT-32"] = "Old MT-32",
+            ["전원 스위치 - 누르면 SPE3 엔진을 끄고 켭니다"] = "Power switch - click to turn the SPE3 engine off and on",
+            ["SPE3 전원을 껐습니다 (다시 켜려면 전원 스위치나 시작 버튼)"] = "SPE3 powered off (use the power switch or the Start button to turn it back on)",
             ["신형 MT-32"] = "New MT-32",
             ["{0}(으)로 바꾸지 못했습니다 - 위 메시지를 확인하세요. {1}을(를) 그대로 씁니다"] = "Could not switch to {0} - see the message above. Keeping {1}",
             ["SPE3 화면"] = "SPE3 panel",
