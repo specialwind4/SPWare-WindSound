@@ -146,8 +146,7 @@
             <Rectangle x:Name="MidiLed" Canvas.Left="510" Canvas.Top="83" Width="5.5" Height="9" Fill="#93AE63"/>
             <Rectangle x:Name="PowerLed" Canvas.Left="545" Canvas.Top="83" Width="5.5" Height="9" Fill="#B9707A"/>
 
-            <!-- 전원 스위치(그림): 어두운 홈 안의 회색 막대 -->
-            <Rectangle Canvas.Left="556" Canvas.Top="81.5" Width="52" Height="13" Fill="#7B765F" RadiusX="1" RadiusY="1"/>
+            <!-- 전원 스위치: 리브 줄에 파인 어두운 홈 안의 누름 잠금 버튼(홈 둘레는 본체 색 그대로) -->
             <Rectangle x:Name="SwitchHollow" Canvas.Left="563" Canvas.Top="81.5" Width="44" Height="13" Fill="#2B2A24" RadiusX="1" RadiusY="1"/>
             <Border x:Name="SwitchBar" Canvas.Left="566" Canvas.Top="83" Width="38" Height="10" CornerRadius="2" BorderThickness="1" BorderBrush="#4D4F51">
                 <Border.Background>
