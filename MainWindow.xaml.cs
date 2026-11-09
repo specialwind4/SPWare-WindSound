@@ -683,6 +683,8 @@ namespace SPWare.VirtualSoundCanvas
         /// 패널의 전원 스위치. 끄면 SPE3을 닫아서(CM-32L/MT-32 두 패널이 같은 엔진이다) 소리도 MIDI 램프도 멈추고,
         /// 켜면 지금 고른 ROM 세트로 다시 연다(재생 중이던 곡 설정은 이어받는다). 시작 버튼도 같은 방식으로 켠다.
         /// </summary>
+        private bool _coldBootNext;   // 스위치로 끈 뒤 처음 켜는 것: 실기처럼 처음 상태로 시작한다(곡 설정을 이어받지 않는다)
+
         private void OnCm32PowerToggle(bool on)
         {
             if (on)
@@ -692,6 +694,7 @@ namespace SPWare.VirtualSoundCanvas
             else if (_mt32.IsOpen)
             {
                 _mt32.Dispose();
+                _coldBootNext = true;
                 Log("SPE3 전원을 껐습니다 (다시 켜려면 전원 스위치나 시작 버튼)");
             }
             Cm32Panel.SetPowered(_mt32.IsOpen);
@@ -769,12 +772,15 @@ namespace SPWare.VirtualSoundCanvas
                     (_mt32.RomSet, _mt32.ControlRomPath, _mt32.PcmRomPath) = (prevSet, prevControl, prevPcm);
                     throw;
                 }
-                if (_router.RestoreTo(_mt32)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE3)");
+                bool coldBoot = _coldBootNext;
+                _coldBootNext = false;
+                if (coldBoot) Log("SPE3 전원을 켰습니다 - 처음 상태에서 시작합니다 (재생 중이던 곡 설정은 이어받지 않습니다)");
+                else if (_router.RestoreTo(_mt32)) Log("이전에 재생 중이던 곡 설정을 이어받았습니다 (SPE3)");
                 // 엔진이 열린 뒤, 지금 이 엔진으로 MIDI가 가고 있으면 연주 중인 곡/게임이 보낸 설정(SysEx, 음색, 음량)과 눌린 음을 새 엔진에 보낸다.
                 // 켜진 채로 다시 연 경우뿐 아니라, 게임이 먼저 연주 중일 때 처음 여는 경우도 해당한다(안 보내면 소리가 비거나 다른 음색으로 난다).
                 else if (IsRoutedTo(_mt32, MidiKind.Mt32) && _router.ReplayStateTo(_mt32))
                     Log("SPE3: 지금 재생 중이던 설정을 이어받았습니다");
-                if (reopen) Mt32Panel.ForgetPartState();   // 새 인스턴스는 파트 음량이 모두 100: 패널이 기억하던 파트 음량/선택도 처음으로
+                if (reopen || coldBoot) Mt32Panel.ForgetPartState();   // 새 인스턴스는 파트 음량이 모두 100: 패널이 기억하던 파트 음량/선택도 처음으로
                 int volume = Math.Clamp((int)Math.Round(Mt32VolumeSlider.Value), 0, 100);   // 슬라이더 = 노브(지난번 위치를 불러왔거나 지금 위치)
                 _mt32.SetMasterVolume(volume);   // 액정 Vol도 따라 바뀐다
                 Mt32Panel.SetMasterVolume(volume);

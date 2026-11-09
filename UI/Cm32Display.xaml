@@ -148,7 +148,7 @@
 
             <!-- 전원 스위치(그림): 어두운 홈 안의 회색 막대 -->
             <Rectangle Canvas.Left="556" Canvas.Top="81.5" Width="52" Height="13" Fill="#7B765F" RadiusX="1" RadiusY="1"/>
-            <Rectangle x:Name="SwitchHollow" Canvas.Left="558" Canvas.Top="83" Width="9" Height="10" Fill="#33322B"/>
+            <Rectangle x:Name="SwitchHollow" Canvas.Left="563" Canvas.Top="81.5" Width="44" Height="13" Fill="#2B2A24" RadiusX="1" RadiusY="1"/>
             <Border x:Name="SwitchBar" Canvas.Left="566" Canvas.Top="83" Width="38" Height="10" CornerRadius="2" BorderThickness="1" BorderBrush="#4D4F51">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -161,9 +161,9 @@
                     <DropShadowEffect Color="Black" BlurRadius="3" ShadowDepth="1.5" Direction="300" Opacity="0.5"/>
                 </Border.Effect>
             </Border>
-            <!-- 스위치를 누르는 자리(투명): 누르면 SPE3 엔진을 끄고 켠다. 켜짐 = 막대가 오른쪽, 꺼짐 = 왼쪽 -->
+            <!-- 스위치를 누르는 자리(투명): 누를 때마다 SPE3 엔진을 끄고 켠다(누름 잠금 버튼: 눌려 들어가 있으면 켜짐, 튀어나와 있으면 꺼짐) -->
             <Rectangle x:Name="SwitchHit" Canvas.Left="556" Canvas.Top="81.5" Width="52" Height="13" Fill="Transparent" Cursor="Hand"
-                       ToolTip="전원 스위치 - 누르면 SPE3 엔진을 끄고 켭니다"/>
+                       ToolTip="전원 스위치 - 누르면 SPE3 엔진을 끄고 켭니다 (켤 때는 처음 상태로 시작)"/>
         </Canvas>
     </Viewbox>
 </UserControl>

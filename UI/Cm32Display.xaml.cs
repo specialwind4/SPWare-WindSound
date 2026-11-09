@@ -79,6 +79,17 @@ namespace SPWare.VirtualSoundCanvas.UI
         private static readonly Brush PowerOnBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x1A, 0x5E));
         private static readonly Brush PowerOffBrush = new SolidColorBrush(Color.FromRgb(0xB9, 0x70, 0x7A));
         private const long LedHoldMs = 90;
+
+        private static LinearGradientBrush Vertical(string top, string mid, string bottom)
+        {
+            var b = new LinearGradientBrush { StartPoint = new System.Windows.Point(0, 0), EndPoint = new System.Windows.Point(0, 1) };
+            b.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(top), 0));
+            b.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(mid), 0.5));
+            b.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(bottom), 1));
+            return b;
+        }
+        private static readonly Brush SwitchOut = Vertical("#A9ABAD", "#8D8F91", "#707274");   // 튀어나온 버튼: 밝다
+        private static readonly Brush SwitchIn = Vertical("#707274", "#68696B", "#5A5C5E");    // 눌려 들어간 버튼: 어둡다
         private long _lastActivityTick;
         private bool _midiLit;
         private bool _powered;
@@ -99,9 +110,13 @@ namespace SPWare.VirtualSoundCanvas.UI
             MidiLed.Effect = midiLit
                 ? new DropShadowEffect { Color = Color.FromRgb(0x6C, 0xFF, 0x2A), BlurRadius = 9, ShadowDepth = 0, Opacity = 0.9 }
                 : null;
-            // 스위치: 켜짐 = 막대가 오른쪽(홈이 왼쪽), 꺼짐 = 막대가 왼쪽(홈이 오른쪽)
-            Canvas.SetLeft(SwitchBar, _powered ? 566 : 558);
-            Canvas.SetLeft(SwitchHollow, _powered ? 558 : 597);
+            // 스위치: 누름 잠금 버튼. 켜짐 = 눌려 들어간 모습(낮고 어둡고 그림자가 작다), 꺼짐 = 튀어나온 모습(높고 밝고 그림자가 크다)
+            SwitchBar.Background = _powered ? SwitchIn : SwitchOut;
+            Canvas.SetTop(SwitchBar, _powered ? 83.6 : 82);
+            SwitchBar.Height = _powered ? 9.8 : 11.5;
+            SwitchBar.Effect = _powered
+                ? new DropShadowEffect { Color = Colors.Black, BlurRadius = 1.5, ShadowDepth = 0.6, Direction = 300, Opacity = 0.35 }
+                : new DropShadowEffect { Color = Colors.Black, BlurRadius = 3.5, ShadowDepth = 2.6, Direction = 300, Opacity = 0.6 };
             PowerLed.Fill = _powered ? PowerOnBrush : PowerOffBrush;
             PowerLed.Effect = _powered
                 ? new DropShadowEffect { Color = Color.FromRgb(0xFF, 0x40, 0x80), BlurRadius = 9, ShadowDepth = 0, Opacity = 0.9 }
