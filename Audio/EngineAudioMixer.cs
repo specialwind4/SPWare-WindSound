@@ -26,6 +26,13 @@ namespace SPWare.VirtualSoundCanvas.Audio
         /// <summary>마스터 볼륨 (0.0 ~ 1.0). 오디오 스레드에서 읽으므로 volatile 대신 float 필드로 둡니다.</summary>
         public float MasterVolume { get; set; } = 0.8f;
 
+        /// <summary>
+        /// 녹음용: 합쳐진 소리를 받아 가는 곳(오디오 스레드에서 불린다 - 받은 쪽은 오래 붙잡으면 안 된다).
+        /// 마스터 볼륨을 곱하기 전의 소리를 준다(듣는 크기를 줄여 놔도 녹음 크기는 그대로).
+        /// </summary>
+        public Action<float[], int, int>? RecordTap { get; set; }
+        private float[] _tapBuffer = new float[0];
+
         /// <summary>[진단용] 마스터/클리퍼를 거치기 전 합산 신호의 피크. 1.0을 넘으면 헤드룸 부족.</summary>
         public float PeakBeforeClip;
 
@@ -158,6 +165,14 @@ namespace SPWare.VirtualSoundCanvas.Audio
             }
             PeakBeforeClip = sumPeak;
             if (sumPeak > PeakHoldMax) PeakHoldMax = sumPeak;
+
+            var tap = RecordTap;
+            if (tap != null)
+            {
+                if (_tapBuffer.Length < count) _tapBuffer = new float[count];
+                for (int i = 0; i < count; i++) _tapBuffer[i] = SoftClip(buffer[offset + i]);
+                try { tap(_tapBuffer, 0, count); } catch { /* 녹음 쪽 문제로 소리가 끊기면 안 된다 */ }
+            }
 
             // 마스터 볼륨을 적용하고, 여러 엔진 소리가 겹쳐 0dB를 넘으면 부드럽게 눌러줍니다.
             float master = Math.Clamp(MasterVolume, 0f, 1f);

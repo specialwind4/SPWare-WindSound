@@ -88,6 +88,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             public int Family = -1;          // -1 모름, 0 GS/GM, 1 MT-32
             public long StartTick;
             public bool StartedByMarker;     // 곡/게임의 시작 신호로 시작한 구간인가(앱이 켜질 때 만든 첫 구간은 아니다)
+            public bool StartedByReset;      // 그 시작 신호가 장치를 초기화하는 SysEx였는가(그 앞의 설정은 장치에 남아 있지 않다)
 
             /// <summary>다른 구간의 기록을 통째로 복사한다(자동 복귀로 곡 구간을 이어 갈 때).</summary>
             public void CopyFrom(Journal o)
@@ -149,13 +150,68 @@ namespace SPWare.VirtualSoundCanvas.Midi
         private Journal NewSegmentLocked(int family, string why)
         {
             // 비어 있는 현재 구간은 그대로 다시 쓴다(신호가 연달아 와도 빈 구간이 쌓이지 않게)
-            if (!Cur.HasContent) { Cur.Family = family; Cur.StartTick = Clock(); Cur.StartedByMarker = true; if (Trace != null) T($"SEG reuse empty -> fam={family} ({why})"); return Cur; }
-            var j = new Journal { Family = family, StartTick = Clock(), StartedByMarker = true };
+            _markerPending = true;
+            bool reset = why == "start sysex";
+            if (!Cur.HasContent) { Cur.Family = family; Cur.StartTick = Clock(); Cur.StartedByMarker = true; Cur.StartedByReset |= reset; if (Trace != null) T($"SEG reuse empty -> fam={family} ({why})"); return Cur; }
+            var j = new Journal { Family = family, StartTick = Clock(), StartedByMarker = true, StartedByReset = reset };
             _segs.Add(j);
             while (_segs.Count > MaxSegments) _segs.RemoveAt(0);
             _stateDirty = true;
             if (Trace != null) T($"SEG new fam={family} ({why}) segs={_segs.Count}");
             return j;
+        }
+
+        // ---- 녹음용: 새 곡이 시작됐다는 알림, 지금 상태를 MIDI 메시지로 꺼내기 ----
+        private volatile bool _markerPending;
+
+        /// <summary>새 재생 구간이 시작됐을 때(GM On / GS Reset / MT-32 리셋 / 모든 채널 All Notes Off 등). MIDI 스레드에서 온다.</summary>
+        public event Action? SongStartMarker;
+
+        /// <summary>구간 기록을 잠그지 않은 상태에서 알림을 보낸다(받는 쪽이 다시 라우터를 불러도 서로 물리지 않게).</summary>
+        private void RaiseMarkerIfPending()
+        {
+            if (!_markerPending) return;
+            _markerPending = false;
+            try { SongStartMarker?.Invoke(); } catch { }
+        }
+
+        /// <summary>
+        /// 곡/게임이 지금까지 보내 둔 설정(SysEx, 채널별 음색/컨트롤러/벤드)을 도착한 순서대로 MIDI 메시지 목록으로 돌려준다.
+        /// 녹음 파일 맨 앞에 넣어서, 곡 중간부터 녹음해도 같은 소리로 재생되게 하려는 것이다.
+        /// 마지막 초기화 신호 뒤로 쌓인 구간들을 이어 붙인다(All Notes Off로만 나뉜 구간의 앞 설정은 장치에 그대로 남아 있다).
+        /// </summary>
+        public List<byte[]> SnapshotStateMessages(bool includeHeldNotes)
+        {
+            var items = new List<(long seq, byte[] msg)>();
+            lock (_replayLock)
+            {
+                int first = _segs.Count - 1;
+                while (first > 0 && !_segs[first].StartedByReset)
+                {
+                    int a = _segs[first].Family, b = _segs[first - 1].Family;
+                    if (a >= 0 && b >= 0 && a != b) break;   // 다른 계열(곡 <-> MT-32 게임)의 설정은 섞지 않는다
+                    first--;
+                }
+                for (int s = first; s < _segs.Count; s++)
+                {
+                    var j = _segs[s];
+                    foreach (var (seq, d) in j.Sysex) items.Add((seq, d));
+                    for (int ch = 0; ch < 16; ch++)
+                    {
+                        foreach (int k in ReplayControllers)
+                            if (j.Cc[ch, k] >= 0) items.Add((j.CcSeq[ch, k], new[] { (byte)(0xB0 | ch), (byte)k, (byte)j.Cc[ch, k] }));
+                        if (j.Program[ch] >= 0) items.Add((j.ProgramSeq[ch], new[] { (byte)(0xC0 | ch), (byte)j.Program[ch] }));
+                        if (j.Bend[ch] >= 0) items.Add((j.BendSeq[ch], new[] { (byte)(0xE0 | ch), (byte)(j.Bend[ch] & 0x7F), (byte)(j.Bend[ch] >> 7) }));
+                    }
+                }
+            }
+            items.Sort((a, b) => a.seq.CompareTo(b.seq));
+            var list = new List<byte[]>(items.Count);
+            foreach (var it in items) list.Add(it.msg);
+            if (includeHeldNotes)
+                for (int ch = 0; ch < 16; ch++)
+                    for (int n = 0; n < 128; n++) { byte v = _held[ch, n]; if (v > 0) list.Add(new[] { (byte)(0x90 | ch), (byte)n, v }); }
+            return list;
         }
 
         private void Record(int channel, int controller, int value)
@@ -740,6 +796,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             TrackHeld(status, data1, data2);
             // 자동 감지가 켜져 있고 MT-32인데 MT-32 음악이 아니라는 증거가 오면 원래 종류로 돌아간다
             CheckRevert(status, data1, data2);
+            RaiseMarkerIfPending();
 
             var channel = status & 0x0F;
             if (!_channelMap.TryGetValue(channel, out var engine))
@@ -793,6 +850,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
 
             TrackMt32Assign(data);
             JournalSysEx(data);
+            RaiseMarkerIfPending();
 
             bool isDeviceInquiry = data.Length >= 2 && data[0] == 0xF0 && data[1] == 0x7E;
 

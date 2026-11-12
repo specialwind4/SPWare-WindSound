@@ -87,6 +87,16 @@ namespace SPWare.VirtualSoundCanvas.Config
         /// <summary>시작할 때 자동으로 연결/재생을 시작할지.</summary>
         public bool AutoStart { get; set; } = false;
 
+        // ---- 녹음 ----
+        /// <summary>녹음할 때 MIDI 파일(.mid)을 저장할지.</summary>
+        public bool RecordMidi { get; set; } = true;
+        /// <summary>녹음할 때 소리를 MP3로 저장할지.</summary>
+        public bool RecordMp3 { get; set; } = true;
+        /// <summary>true = 곡 단위 자동 저장(곡이 끝나거나 반복되면 한 곡씩), false = 수동(녹음 버튼을 누른 때부터 정지할 때까지).</summary>
+        public bool RecordPerSong { get; set; } = true;
+        /// <summary>저장 폴더. 비어 있으면 "음악\SPWare WindSound".</summary>
+        public string RecordFolder { get; set; } = "";
+
         // ---- 새 버전 안내(안내만 하고 자동 설치는 하지 않는다) ----
         /// <summary>하루에 한 번 GitHub에서 최신 릴리스 번호를 확인해 새 버전이 있으면 안내한다.</summary>
         public bool CheckForUpdates { get; set; } = true;

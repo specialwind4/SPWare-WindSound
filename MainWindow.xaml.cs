@@ -25,6 +25,7 @@ namespace SPWare.VirtualSoundCanvas
         private readonly EngineAudioMixer _mixer = new();
         private WasapiOut? _audioOutput;
         private readonly DispatcherTimer _displayPollTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+        private readonly Recording.SongRecorder _recorder = new();   // 듣고 있는 음악을 MIDI 파일 / MP3로 저장
 
         private readonly AppSettings _settings;
         /// <summary>창이 내용에 맞춰 늘어나는 최대 높이(DIP). 설정을 다 펴면 이보다 길어져서 스크롤이 생긴다.</summary>
@@ -161,8 +162,21 @@ namespace SPWare.VirtualSoundCanvas
             // 엔진들이 LCD 텍스트를 실제로 내주는 경우에만 의미가 있고, 못 내면
             // Poll 메서드들이 즉시 리턴하므로 항상 켜둬도 부담이 없습니다.
             // (MIDI 메시지마다 읽지 않고 여기서 주기적으로만 읽는 게 핵심입니다.)
+            // --- 녹음 배선: MIDI는 받는 자리(StartMidiInput)에서, 소리는 믹서에서, 곡이 바뀌는 신호는 라우터에서 받는다 ---
+            _recorder.StateSnapshot = held => _router.SnapshotStateMessages(held);
+            _recorder.Message += text => Dispatcher.BeginInvoke(new Action(() => Log(text)));
+            _router.SongStartMarker += _recorder.OnMarker;
+            _mixer.RecordTap = _recorder.OnAudio;
+            RecordModeCombo.ItemsSource = new[]
+            {
+                L("곡 단위 자동 저장 (곡이 끝나거나 반복되면 한 곡씩)"),
+                L("수동 (녹음을 누른 때부터 정지할 때까지 그대로)"),
+            };
+
             _displayPollTimer.Tick += (_, _) =>
             {
+                _recorder.Tick();
+                UpdateRecordUi();
                 if (++_stateSaveTick >= 30) { _stateSaveTick = 0; SaveMidiStateAsync(); }
                 _mt32.PollDisplayState();
                 Cm32Panel.SetPowered(_mt32.IsOpen);   // POWER 램프: 엔진이 열려 있으면 켜짐
@@ -235,7 +249,7 @@ namespace SPWare.VirtualSoundCanvas
             var sections = new (Expander Expander, string Key)[]
             {
                 (SecAll, "all"), (SecRom, "rom"), (SecChannel, "channel"), (SecMidi, "midi"),
-                (SecSc55Rom, "sc55rom"), (SecAudio, "audio"), (SecLog, "log"),
+                (SecSc55Rom, "sc55rom"), (SecRecord, "record"), (SecAudio, "audio"), (SecLog, "log"),
             };
             // 도움말은 처음에 접혀 있어야 하므로 "접힌 목록"이 아니라 별도 값으로 기억한다
             SecHelp.IsExpanded = _settings.HelpExpanded && _settings.CollapsedSections.Contains("all"); // 설정이 펼쳐져 있으면 도움말은 접힌 채로 시작
@@ -300,6 +314,10 @@ namespace SPWare.VirtualSoundCanvas
             Cm32Panel.SetMasterVolume(mt32Volume);
             Sc55VolumeSlider.Value = _settings.Sc55Volume * 100;
             AutoStartCheck.IsChecked = _settings.AutoStart;
+            RecordMidiCheck.IsChecked = _settings.RecordMidi;
+            RecordMp3Check.IsChecked = _settings.RecordMp3;
+            RecordModeCombo.SelectedIndex = _settings.RecordPerSong ? 0 : 1;
+            RecordFolderBox.Text = RecordFolderOrDefault(_settings.RecordFolder);
             UpdateCheck.IsChecked = _settings.CheckForUpdates;
 
             LanguageCombo.ItemsSource = new[] { "Auto (Windows language / 윈도 언어)", "한국어", "English" };
@@ -348,6 +366,11 @@ namespace SPWare.VirtualSoundCanvas
             _settings.Mt32MasterVolume = Math.Clamp((int)Math.Round(Mt32VolumeSlider.Value), 0, 100);
             _settings.Sc55Volume = Sc55VolumeSlider.Value / 100.0;
             _settings.AutoStart = AutoStartCheck.IsChecked == true;
+            _settings.RecordMidi = RecordMidiCheck.IsChecked == true;
+            _settings.RecordMp3 = RecordMp3Check.IsChecked == true;
+            _settings.RecordPerSong = RecordModeCombo.SelectedIndex != 1;
+            // 기본 폴더 그대로면 빈 값으로 저장한다(사용자 폴더가 바뀌어도 따라가게)
+            _settings.RecordFolder = string.Equals(RecordFolderBox.Text.Trim(), RecordFolderOrDefault(""), StringComparison.OrdinalIgnoreCase) ? "" : RecordFolderBox.Text.Trim();
             _settings.CheckForUpdates = UpdateCheck.IsChecked == true;
             _settings.AutoDetectKind = AutoKindCheck.IsChecked == true;
             _settings.Language = LanguageCombo.SelectedIndex switch { 1 => "ko", 2 => "en", _ => "auto" };
@@ -534,6 +557,95 @@ namespace SPWare.VirtualSoundCanvas
             if (path is null) return;
             Mt32RomPathBox.Text = path;
             SetMt32FolderForCurrentSet(path);
+        }
+
+        // ---------------------------------------------------------------
+        // 녹음
+        // ---------------------------------------------------------------
+
+        private static string L(string s) => Loc.T(s);
+
+        private static string RecordFolderOrDefault(string folder) =>
+            string.IsNullOrWhiteSpace(folder)
+                ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "SPWare WindSound")
+                : folder;
+
+        private void OnRecordToggle(object sender, RoutedEventArgs e)
+        {
+            if (_recorder.IsOn)
+            {
+                _recorder.Stop();
+                Log("녹음 정지");
+                UpdateRecordUi();
+                return;
+            }
+            bool midi = RecordMidiCheck.IsChecked == true, mp3 = RecordMp3Check.IsChecked == true;
+            if (!midi && !mp3)
+            {
+                Log("녹음: 저장할 형식(MIDI 파일 / MP3)을 설정의 녹음에서 하나 이상 고르세요");
+                return;
+            }
+            string folder = RecordFolderOrDefault(RecordFolderBox.Text.Trim());
+            try { Directory.CreateDirectory(folder); }
+            catch (Exception ex) { Log($"녹음: 저장 폴더를 만들 수 없습니다: {ex.Message}"); return; }
+
+            bool perSong = RecordModeCombo.SelectedIndex != 1;
+            _recorder.Start(new Recording.SongRecorder.Options
+            {
+                SaveMidi = midi,
+                SaveMp3 = mp3,
+                PerSong = perSong,
+                Folder = folder,
+                SampleRate = _mixer.WaveFormat.SampleRate,
+            });
+            Log(perSong ? "녹음 시작 (곡 단위 자동 저장): 곡이 시작되면 녹음합니다" : "녹음 시작 (수동): 정지를 누를 때까지 녹음합니다");
+            UpdateRecordUi();
+        }
+
+        private string _recordUiText = "";
+        private bool _recordUiOn;
+
+        /// <summary>녹음 버튼과 그 옆의 상태 글을 지금 상태에 맞춘다(주기 타이머가 부른다. 바뀐 때만 화면을 건드린다).</summary>
+        private void UpdateRecordUi()
+        {
+            var phase = _recorder.CurrentPhase;
+            bool on = phase != Recording.SongRecorder.Phase.Off;
+            string text = phase switch
+            {
+                Recording.SongRecorder.Phase.Armed => L("곡을 기다리는 중"),
+                Recording.SongRecorder.Phase.Recording => string.Format(L("녹음 중 {0}"), _recorder.TakeElapsed.ToString(@"m\:ss")),
+                Recording.SongRecorder.Phase.Holding => L("반복되는 곡을 저장함 - 다음 곡을 기다리는 중"),
+                _ => "",
+            };
+            if (_recorder.IsSaving) text = text.Length > 0 ? text + " · " + L("저장 중...") : L("저장 중...");
+            else if (_recorder.SavedCount > 0) text = (text.Length > 0 ? text + " · " : "") + string.Format(L("저장 {0}개"), _recorder.SavedCount);
+            if (text != _recordUiText) { _recordUiText = text; RecordStatusText.Text = text; }
+            if (on != _recordUiOn)
+            {
+                _recordUiOn = on;
+                RecordButton.Content = on ? L("■ 정지") : L("● 녹음");
+                RecordButton.Background = on
+                    ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB3, 0x26, 0x1E))
+                    : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2B, 0x2B, 0x34));
+            }
+        }
+
+        private void OnBrowseRecordFolder(object sender, RoutedEventArgs e)
+        {
+            var path = PickFolder(L("녹음 파일을 저장할 폴더를 고르세요"), RecordFolderBox.Text);
+            if (path is null) return;
+            RecordFolderBox.Text = path;
+        }
+
+        private void OnOpenRecordFolder(object sender, RoutedEventArgs e)
+        {
+            string folder = RecordFolderOrDefault(RecordFolderBox.Text.Trim());
+            try
+            {
+                Directory.CreateDirectory(folder);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", "\"" + folder + "\"") { UseShellExecute = true });
+            }
+            catch (Exception ex) { Log($"폴더를 열 수 없습니다: {ex.Message}"); }
         }
 
         private void OnBrowseSc55Rom(object sender, RoutedEventArgs e)
@@ -1007,8 +1119,9 @@ namespace SPWare.VirtualSoundCanvas
                 _midiInIndex = -1;
                 _midiIn?.Dispose(); // 다른 포트로 바꿨을 때 이전 연결 정리
                 _midiIn = new RawMidiIn();
-                _midiIn.ShortMessageReceived += (_, m) => _router.HandleShortMessage(m.status, m.data1, m.data2);
-                _midiIn.SysExReceived += (_, data) => _router.HandleSysEx(data);
+                // 녹음기가 먼저 받는다: 곡의 첫 음에서 녹음을 시작할 때, 그 음이 라우터 기록(상태)에 들어가기 전의 상태를 파일 앞에 넣는다
+                _midiIn.ShortMessageReceived += (_, m) => { _recorder.OnShort(m.status, m.data1, m.data2); _router.HandleShortMessage(m.status, m.data1, m.data2); };
+                _midiIn.SysExReceived += (_, data) => { _recorder.OnSysEx(data); _router.HandleSysEx(data); };
                 _midiIn.Open(MidiInCombo.SelectedIndex);
                 _midiInIndex = MidiInCombo.SelectedIndex;
                 Log("가상 MIDI 입력 연결 완료 - 대기 중 (SysEx 포함)");
@@ -1145,6 +1258,7 @@ namespace SPWare.VirtualSoundCanvas
             try { _displayPollTimer.Stop(); } catch { }
             try { _midiIn?.Dispose(); } catch { }        // 새 MIDI가 엔진으로 들어가지 않게 먼저 끊는다
             try { SaveMidiState(); } catch { }           // 다른 앱/다음 실행이 곡 설정을 이어받게 마지막 기록을 저장
+            try { _recorder.Shutdown(); _mixer.RecordTap = null; } catch { }   // 녹음 중이면 멈추고 저장이 끝나길 기다린다
             try { _mixer.Stop(); } catch { }             // 진행 중인 렌더가 끝나길 기다리고 이후는 무음
             try { _audioOutput?.Stop(); } catch { }
             try { _audioOutput?.Dispose(); } catch { }
