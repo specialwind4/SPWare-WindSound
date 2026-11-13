@@ -398,7 +398,12 @@ namespace SPWare.VirtualSoundCanvas.Recording
         }
 
         private const int MinSongNotes = 8, MinSongMs = 2500;
-        private const int LoopTailMs = 3000;          // 반복 음악: 한 사이클 뒤 이만큼 더 넣고 서서히 줄인다
+        // 반복 음악을 한 사이클로 자를 때 끝이 뚝 끊기지 않게:
+        //  - MP3: 사이클 뒤로 이만큼(두 번째 바퀴의 앞부분)을 더 넣고 천천히 줄인다. 직선으로 줄이면 끝에서 갑자기 꺼지는 것처럼 들려서 곡선으로 줄인다.
+        //  - MIDI: 사이클 끝에 걸쳐 있던 음은 그 자리에서 끊지 않고 원래 떼는 때까지 울리게 두고(최대 LoopRingOutMs), 그 뒤 여운이 남게 EndPadMs만큼 비워 둔다.
+        private const int LoopTailMs = 8000;
+        private const int LoopRingOutMs = 6000;
+        private const int EndPadMs = 2000;
         private const int SysExSpacingMs = 20;
 
         private void Finish(EndRequest req)
@@ -474,7 +479,24 @@ namespace SPWare.VirtualSoundCanvas.Recording
             long last = lead;
             foreach (var (ms, d) in t.Events)
             {
-                if (ms >= endMs) break;
+                if (ms >= endMs)
+                {
+                    if (reason != EndReason.Loop || ms >= endMs + LoopRingOutMs) break;
+                    // 한 사이클이 끝난 뒤(두 번째 바퀴): 새 음은 넣지 않고, 걸쳐 있던 음을 원래 떼는 때에 끄기만 한다
+                    if (d.Length == 3)
+                    {
+                        int ty = d[0] & 0xF0, c = d[0] & 0x0F;
+                        bool off = ty == 0x80 || (ty == 0x90 && d[2] == 0);
+                        if (off && held[c, d[1]] != 0)
+                        {
+                            long atOff = lead + (ms - startCut);
+                            list.Add((atOff, new[] { (byte)(0x80 | c), d[1], (byte)0x40 }));
+                            held[c, d[1]] = 0;
+                            last = atOff;
+                        }
+                    }
+                    continue;
+                }
                 if (reason == EndReason.Marker && ms > lastNote) break;   // 마지막 음 뒤의 메시지는 다음 곡으로 넘어가는 신호다
                 if (ms < startCut) { Setup(d); last = lead; continue; }
                 long at = lead + (ms - startCut);
@@ -488,13 +510,20 @@ namespace SPWare.VirtualSoundCanvas.Recording
                     else if (type == 0xB0 && d[1] is 120 or 123) for (int n = 0; n < 128; n++) held[ch, n] = 0;
                 }
             }
-            // 3) 끝: 아직 눌려 있는 음을 끈다(반복 지점에서 자르면 걸쳐 있는 음이 있다)
+            // 3) 끝: 아직도 눌려 있는 음을 끈다
             long end = Math.Max(lead + Math.Max(endMs - startCut, 0), last);
             if (reason == EndReason.Marker) end = last;
             for (int ch = 0; ch < 16; ch++)
                 for (int n = 0; n < 128; n++)
                     if (held[ch, n] != 0) list.Add((end, new[] { (byte)(0x80 | ch), (byte)n, (byte)0x40 }));
-            SmfWriter.Write(path, list, end, trackName);
+            // 트랙의 끝은 조금 뒤에 둔다: 재생기가 파일 끝에서 소리를 바로 끄기 때문에, 마지막 음의 여운(릴리스, 리버브)이 잘리지 않게
+            long trackEnd = reason switch
+            {
+                EndReason.Loop => end + EndPadMs,
+                EndReason.Stop or EndReason.TooLong => end + 1000,
+                _ => end,   // 조용해져서 끝난 곡은 이미 여운까지 들어 있고, 다음 곡 신호로 끝난 곡은 그 신호가 소리를 끊은 것이다
+            };
+            SmfWriter.Write(path, list, trackEnd, trackName);
         }
 
         private static bool _mfStarted;
@@ -540,7 +569,7 @@ namespace SPWare.VirtualSoundCanvas.Recording
             {
                 if (!_mfStarted) { MediaFoundationApi.Startup(); _mfStarted = true; }
                 string mp3 = basePath + ".mp3";
-                MediaFoundationEncoder.EncodeToMp3(new PcmSegment(fs, format, startFrame, endFrame, fadeFrames, gain), mp3, 192000);
+                MediaFoundationEncoder.EncodeToMp3(new PcmSegment(fs, format, startFrame, endFrame, fadeFrames, gain, reason == EndReason.Loop), mp3, 192000);
                 if (new FileInfo(mp3).Length > 1024) return mp3;
                 TryDelete(mp3);
             }
@@ -550,7 +579,7 @@ namespace SPWare.VirtualSoundCanvas.Recording
                 Say($"MP3 변환을 쓸 수 없어 WAV로 저장합니다 ({ex.Message})");
             }
             string wav = basePath + ".wav";
-            WaveFileWriter.CreateWaveFile(wav, new PcmSegment(fs, format, startFrame, endFrame, fadeFrames, gain));
+            WaveFileWriter.CreateWaveFile(wav, new PcmSegment(fs, format, startFrame, endFrame, fadeFrames, gain, reason == EndReason.Loop));
             return wav;
         }
 
@@ -560,13 +589,14 @@ namespace SPWare.VirtualSoundCanvas.Recording
             private readonly FileStream _fs;
             private readonly long _end, _fadeStart, _fadeFrames;
             private readonly float _gain;
+            private readonly bool _curved;   // 긴 줄임(반복 음악의 끝): 곡선으로 줄인다
             private long _pos;
             public WaveFormat WaveFormat { get; }
 
-            public PcmSegment(FileStream fs, WaveFormat format, long startFrame, long endFrame, long fadeFrames, float gain)
+            public PcmSegment(FileStream fs, WaveFormat format, long startFrame, long endFrame, long fadeFrames, float gain, bool curved)
             {
                 _fs = fs; WaveFormat = format; _pos = startFrame; _end = endFrame;
-                _fadeFrames = fadeFrames; _fadeStart = endFrame - fadeFrames; _gain = gain;
+                _fadeFrames = fadeFrames; _fadeStart = endFrame - fadeFrames; _gain = gain; _curved = curved;
             }
 
             public int Read(byte[] buffer, int offset, int count)
@@ -587,7 +617,11 @@ namespace SPWare.VirtualSoundCanvas.Recording
                 {
                     float g = _gain;
                     long frame = _pos + f;
-                    if (_fadeFrames > 0 && frame >= _fadeStart) g *= (float)(_end - frame) / _fadeFrames;
+                    if (_fadeFrames > 0 && frame >= _fadeStart)
+                    {
+                        float x = (float)(_end - frame) / _fadeFrames;   // 1 -> 0
+                        g *= _curved ? x * x : x;                        // 제곱 곡선: 귀에는 고르게 작아지는 것으로 들린다
+                    }
                     for (int c = 0; c < 2; c++)
                     {
                         int i = offset + (f * 2 + c) * 2;
