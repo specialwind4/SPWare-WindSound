@@ -687,7 +687,7 @@
                     <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
                               Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
                 </StackPanel>
-                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" Width="120" HorizontalAlignment="Right" Padding="14,10" Click="OnStart"/>
+                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" MinWidth="72" HorizontalAlignment="Right" Padding="16,6" Click="OnStart"/>
             </Grid>
         </StackPanel>
     </ScrollViewer>
