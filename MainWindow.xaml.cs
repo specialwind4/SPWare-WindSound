@@ -624,9 +624,12 @@ namespace SPWare.VirtualSoundCanvas
             {
                 _recordUiOn = on;
                 RecordButton.Content = on ? L("■ 정지") : L("● 녹음");
-                RecordButton.Background = on
-                    ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB3, 0x26, 0x1E))
-                    : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2B, 0x2B, 0x34));
+                RecordButton.Background = new System.Windows.Media.SolidColorBrush(on
+                    ? System.Windows.Media.Color.FromRgb(0x8E, 0x25, 0x20)
+                    : System.Windows.Media.Color.FromRgb(0x30, 0x30, 0x36));
+                RecordButton.BorderBrush = new System.Windows.Media.SolidColorBrush(on
+                    ? System.Windows.Media.Color.FromRgb(0xC2, 0x4A, 0x42)
+                    : System.Windows.Media.Color.FromRgb(0x46, 0x46, 0x4E));
             }
         }
 
