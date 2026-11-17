@@ -197,7 +197,7 @@
             <Setter Property="Background" Value="#303036"/>
             <Setter Property="BorderBrush" Value="#46464E"/>
             <Setter Property="Foreground" Value="#ECECF0"/>
-            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Padding" Value="14,3"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -430,7 +430,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <TextBlock x:Name="RecordStatusText" Foreground="{StaticResource TextMuted}" FontSize="12"
                            VerticalAlignment="Center" Margin="0,0,10,0" TextTrimming="CharacterEllipsis" MaxWidth="360"/>
-                <Button x:Name="RecordButton" Content="● 녹음" Style="{StaticResource QuietButtonStyle}" Click="OnRecordToggle"
+                <Button x:Name="RecordButton" Content="● 녹음" Style="{StaticResource QuietButtonStyle}" Width="76" Click="OnRecordToggle"
                         ToolTip="지금 듣는 음악을 MIDI 파일 / MP3로 저장합니다 (형식과 방식은 설정의 녹음에서 고릅니다)"/>
             </StackPanel>
             </Grid>
@@ -687,7 +687,7 @@
                     <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
                               Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
                 </StackPanel>
-                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" MinWidth="72" HorizontalAlignment="Right" Padding="16,6" Click="OnStart"/>
+                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" Width="76" HorizontalAlignment="Right" Padding="14,3" Click="OnStart"/>
             </Grid>
         </StackPanel>
     </ScrollViewer>
