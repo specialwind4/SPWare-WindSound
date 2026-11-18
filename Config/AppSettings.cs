@@ -54,6 +54,9 @@ namespace SPWare.VirtualSoundCanvas.Config
 
         /// <summary>SPE3 마스터 볼륨(패널 노브, 1~100). 다음 실행 때 SysEx로 되살린다.</summary>
         public int Mt32MasterVolume { get; set; } = 100;
+
+        /// <summary>CM-32L 마스터 볼륨(패널 노브, 1~100). -1이면 아직 따로 저장한 적이 없는 것(예전 설정: MT-32 값을 이어받는다).</summary>
+        public int Cm32MasterVolume { get; set; } = -1;
         public double Sc55Volume { get; set; } = 1.0;
 
         /// <summary>마지막으로 쓴 창 폭. 0이면 기본 폭. 사용자가 늘린 폭을 다음 실행 때도 그대로 쓴다.</summary>

@@ -13,11 +13,16 @@ namespace SPWare.VirtualSoundCanvas.Midi
         Mt32 = 1,
         /// <summary>GM / GS 음악. 모든 채널을 SPE5 에뮬레이터로.</summary>
         GmGs = 2,
+        /// <summary>SPE3L용 음악. 모든 채널을 SPE3L 에뮬레이터로(SPE3 에뮬레이터와는 따로 도는 엔진). 같은 신호를 쓰므로 직접 골라야 한다.</summary>
+        Cm32 = 3,
     }
 
     /// <summary>들어오는 SysEx로 MIDI 종류를 알아채는 감지기.</summary>
     public static class MidiKindDetector
     {
+        /// <summary>MT-32 계열(MT-32, CM-32L): 같은 MT-32 SysEx와 채널 배정을 쓴다.</summary>
+        public static bool IsMt32Family(MidiKind k) => k is MidiKind.Mt32 or MidiKind.Cm32;
+
         /// <summary>
         /// SysEx 한 개를 보고 종류를 추정한다. 알아볼 수 없으면 <see cref="MidiKind.Custom"/>을 돌려준다(= 판단 안 함).
         ///
@@ -60,6 +65,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         public static string Describe(MidiKind kind) => kind switch
         {
             MidiKind.Mt32 => "SPE3",
+            MidiKind.Cm32 => "SPE3L",
             MidiKind.GmGs => "GM / GS (SPE5)",
             _ => "직접 설정",
         };

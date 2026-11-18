@@ -59,7 +59,10 @@ namespace SPWare.VirtualSoundCanvas.Engines
         private readonly object _sync = new();
         private string _lastDisplayText = "";
 
-        public string Name => "SPE3 (mt32emu)";
+        public string Name { get; }
+
+        /// <summary>SPE3와 SPE3L은 같은 엔진 코드를 각각 따로 한 개씩 돌린다(이름만 다르다).</summary>
+        public Mt32Engine(string? name = null) { Name = name ?? "SPE3 (mt32emu)"; }
         public bool HandlesDeviceInquiry => true;
         public event EventHandler<string>? LcdTextChanged;
 
@@ -94,7 +97,7 @@ namespace SPWare.VirtualSoundCanvas.Engines
             {
                 string detail = GetLastNativeMessage();
                 throw new InvalidOperationException(
-                    $"SPE3 ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
+                    $"{(RomSet == Mt32RomSet.Cm32L ? "SPE3L" : "SPE3")} ROM 로드 실패 - {(string.IsNullOrEmpty(detail) ? "원인 불명" : detail)} " +
                     $"(CONTROL: {ControlRomPath}, PCM: {PcmRomPath})");
             }
 

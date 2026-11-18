@@ -136,7 +136,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         private Journal Cur => _segs[_segs.Count - 1];
         private static readonly int[] ReplayControllers = { 0, 32, 7, 10, 11, 71, 72, 73, 74, 91, 93 };
 
-        private static int FamilyOf(MidiKind k) => k == MidiKind.Mt32 ? 1 : 0;
+        private static int FamilyOf(MidiKind k) => MidiKindDetector.IsMt32Family(k) ? 1 : 0;
 
         private static short[] NewUnset(int n) { var a = new short[n]; Array.Fill(a, (short)-1); return a; }
         private static short[,] NewUnset(int a, int b)
@@ -258,7 +258,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             {
                 // 방금 구간을 시작했으면 같은 시작으로 본다(플레이어는 정지/탐색할 때 GS Reset과 All Notes Off를 여러 번 연달아 보낸다)
                 if (now - Cur.StartTick < MergeWithStartMs && Cur.StartedByMarker) return;
-                NewSegmentLocked(CurrentKind == MidiKind.Mt32 ? 1 : -1, "all notes off");
+                NewSegmentLocked(MidiKindDetector.IsMt32Family(CurrentKind) ? 1 : -1, "all notes off");
             }
         }
 
@@ -335,7 +335,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
         /// <summary>MT-32 상태에서 MT-32 음악이 아니라는 증거가 오면 원래 종류로 돌아간다. 돌아가면 true.</summary>
         private bool CheckRevert(byte status, byte d1, byte d2)
         {
-            if (!AutoDetectKind || CurrentKind != MidiKind.Mt32) { if (_recent.Count > 0) _recent.Clear(); return false; }
+            if (!AutoDetectKind || !MidiKindDetector.IsMt32Family(CurrentKind)) { if (_recent.Count > 0) _recent.Clear(); return false; }
             int type = status & 0xF0, ch = status & 0x0F;
             long now = Clock();
             bool weak;
@@ -461,7 +461,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 for (int i = _segs.Count - 1; i >= 0; i--) if (_segs[i].HasContent) { j = _segs[i]; break; }
                 if (j is null) return null;
                 // 저장할 종류: 구간의 계열을 따르고, 모르면 지금 종류
-                kind = j.Family == 1 ? MidiKind.Mt32 : j.Family == 0 ? (CurrentKind is MidiKind.Mt32 or MidiKind.Custom ? _lastNonMt32Kind : CurrentKind)
+                kind = j.Family == 1 ? (CurrentKind == MidiKind.Cm32 ? MidiKind.Cm32 : MidiKind.Mt32) : j.Family == 0 ? (CurrentKind is MidiKind.Mt32 or MidiKind.Cm32 or MidiKind.Custom ? _lastNonMt32Kind : CurrentKind)
                      : MidiKind.Custom;   // 모름: 불러올 때 계열 모름으로, 그때의 기본 엔진에 복원
                 foreach (var (seq, d) in j.Sysex) items.Add((seq, 0, d));
                 for (int ch = 0; ch < 16; ch++)
@@ -640,9 +640,9 @@ namespace SPWare.VirtualSoundCanvas.Midi
                     foreach (var (seq, d) in j.Sysex)
                     {
                         bool roland = d.Length > 3 && d[1] == 0x41;
-                        bool ok = kind == MidiKind.Mt32 ? roland && d[3] == 0x16
+                        bool ok = MidiKindDetector.IsMt32Family(kind) ? roland && d[3] == 0x16
                                                         : !roland || d[3] == 0x42;   // GS/GM 계열: 유니버설/GS만
-                        if (kind == MidiKind.Mt32 && !roland) ok = false;
+                        if (MidiKindDetector.IsMt32Family(kind) && !roland) ok = false;
                         if (ok) { var data = d; items.Add((seq, () => target.SysEx(data))); }
                     }
                 }
@@ -696,7 +696,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
 
         private MidiKind KindOf(ISynthEngine engine)
         {
-            foreach (var k in new[] { MidiKind.Mt32, MidiKind.GmGs })
+            foreach (var k in new[] { MidiKind.Mt32, MidiKind.Cm32, MidiKind.GmGs })
                 if (ReferenceEquals(KindToEngine?.Invoke(k), engine)) return k;
             return MidiKind.GmGs;
         }
@@ -738,7 +738,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
                 _channelMap = new Dictionary<int, ISynthEngine>();
                 ActiveEngine = target;
                 CurrentKind = kind;
-                if (kind != MidiKind.Mt32 && kind != MidiKind.Custom) _lastNonMt32Kind = kind;
+                if (!MidiKindDetector.IsMt32Family(kind) && kind != MidiKind.Custom) _lastNonMt32Kind = kind;
             }
 
             foreach (var e in previous)
@@ -759,7 +759,7 @@ namespace SPWare.VirtualSoundCanvas.Midi
             if (!automatic && previous.Any(e => !ReferenceEquals(e, target)))
                 ReplayStateTo(target, kind);
 
-            if (!automatic && kind == MidiKind.Mt32)
+            if (!automatic && MidiKindDetector.IsMt32Family(kind))
                 lock (_replayLock) if (Cur.Family == -1) Cur.Family = 1;   // 손으로 MT-32를 골랐다: 지금 구간은 MT-32 소리(원숭이섬처럼 SysEx를 안 보내는 게임)
             if (Trace != null) T($"KIND -> {kind} ({(automatic ? "auto" : "manual")}) segs={_segs.Count} curfam={Cur.Family}");
             KindChanged?.Invoke(this, (kind, automatic));
@@ -844,6 +844,8 @@ namespace SPWare.VirtualSoundCanvas.Midi
             if (AutoDetectKind)
             {
                 var detected = MidiKindDetector.Detect(data);
+                // CM-32L을 골라 둔 상태에서 오는 MT-32 SysEx는 CM-32L도 같이 쓰는 신호다(MT-32 엔진으로 옮기지 않는다)
+                if (detected == MidiKind.Mt32 && CurrentKind == MidiKind.Cm32) detected = MidiKind.Custom;
                 if (detected != MidiKind.Custom && detected != CurrentKind)
                     ApplyKind(detected, automatic: true);
             }
