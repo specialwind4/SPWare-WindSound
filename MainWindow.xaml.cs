@@ -154,13 +154,14 @@ namespace SPWare.VirtualSoundCanvas
             try { var savedState = MidiStateStore.Load(); if (savedState != null) _router.ImportState(savedState, TimeSpan.FromHours(12)); } catch { }
             _router.KindChanged += (_, e) =>
                 Dispatcher.BeginInvoke(new Action(() => OnKindChanged(e.kind, e.automatic)));
-            KindCombo.ItemsSource = new[]
+            var kindNames = new[]   // MidiKind 숫자 순서
             {
                 Loc.T("직접 설정"),
                 Loc.T("SPE3 (MT-32 계열 게임 음악)"),
                 Loc.T("GM · GS (SC-55 계열)"),
                 Loc.T("SPE3L (CM-32L 계열 게임 음악)"),
             };
+            KindCombo.ItemsSource = KindDisplayOrder.Select(k => kindNames[k]).ToArray();   // 목록에는 CM-32L이 위쪽, 저장되는 종류 번호는 그대로
             KindCombo.SelectedIndex = 0;
             KindCombo.SelectionChanged += OnKindComboChanged;
             AutoKindCheck.Checked += (_, _) => _router.AutoDetectKind = true;
@@ -355,7 +356,7 @@ namespace SPWare.VirtualSoundCanvas
             AutoKindCheck.IsChecked = _settings.AutoDetectKind;
             var savedKind = (MidiKind)Math.Clamp(_settings.MidiKindIndex, 0, 3);
             _applyingKind = true;
-            KindCombo.SelectedIndex = (int)savedKind;
+            KindCombo.SelectedIndex = RowOfKind(savedKind);
             _applyingKind = false;
             if (savedKind != MidiKind.Custom)
             {
@@ -758,11 +759,18 @@ namespace SPWare.VirtualSoundCanvas
             _ => -1,
         };
 
+        /// <summary>MIDI 종류 목록에 보이는 순서(값은 MidiKind 숫자). 직접 설정이 맨 위, 그 아래로 CM-32L, MT-32, GM·GS 순.</summary>
+        private static readonly int[] KindDisplayOrder = { 0, 3, 1, 2 };
+
+        private static MidiKind KindAtRow(int row) => (MidiKind)KindDisplayOrder[Math.Clamp(row, 0, KindDisplayOrder.Length - 1)];
+
+        private static int RowOfKind(MidiKind kind) => Math.Max(Array.IndexOf(KindDisplayOrder, (int)kind), 0);
+
         /// <summary>콤보에서 종류를 골랐을 때: 직접 설정이면 그대로 두고, 아니면 배정과 기본 엔진을 그 종류로 바꾼다.</summary>
         private void OnKindComboChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (_applyingKind || !_uiReady) return;
-            var kind = (MidiKind)Math.Max(KindCombo.SelectedIndex, 0);
+            var kind = KindAtRow(KindCombo.SelectedIndex);
             if (kind == MidiKind.Custom)
             {
                 _router.MarkCustom();
@@ -779,7 +787,7 @@ namespace SPWare.VirtualSoundCanvas
             _applyingKind = true;
             try
             {
-                KindCombo.SelectedIndex = (int)kind;
+                KindCombo.SelectedIndex = RowOfKind(kind);
                 int engineIndex = EngineIndexOf(kind);
                 if (engineIndex >= 0)
                 {
