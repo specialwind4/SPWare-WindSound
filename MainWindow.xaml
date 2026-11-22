@@ -477,6 +477,13 @@
             <Expander x:Name="SecAll" Style="{StaticResource BodyOnlyExpander}" Margin="4,0,0,0">
             <StackPanel Margin="0,4,0,12">
 
+            <!-- 시작 옵션 -->
+            <StackPanel Margin="2,0,0,12">
+                <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"/>
+                <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
+                          Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
+            </StackPanel>
+
             <!-- SPE3(MT-32) ROM 세트 선택 (SPE3 탭에서만 보인다. SPE3L은 따로 도는 엔진이라 아래 카드가 따로 있다) -->
             <Border x:Name="RomSetCard" Style="{StaticResource Card}" Visibility="Collapsed">
                 <Expander x:Name="SecRom" Header="MT-32 ROM 세트" Style="{StaticResource SectionExpander}">
@@ -709,13 +716,6 @@
                 </StackPanel>
                 </Expander>
             </Border>
-
-            <!-- 시작 옵션 -->
-            <StackPanel Margin="2,0,0,12">
-                <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"/>
-                <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
-                          Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
-            </StackPanel>
 
             </StackPanel>
             </Expander>

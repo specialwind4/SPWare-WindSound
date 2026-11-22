@@ -107,7 +107,7 @@ namespace SPWare.VirtualSoundCanvas
             {
                 if (Math.Abs(Sc55VolumeSlider.Value - v * 100) > 0.01) Sc55VolumeSlider.Value = v * 100;
             };
-            EngineCombo.ItemsSource = new[] { _mt32.Name, _sc55.Name, _cm32.Name };   // 번호는 저장된 설정과 맞춘다(2 = CM-32L)
+            EngineCombo.ItemsSource = EngineDisplayOrder.Select(i => EngineByIndex(i).Name).ToArray();   // 목록에는 CM-32L이 맨 위, 저장되는 엔진 번호는 그대로
             EngineCombo.SelectedIndex = 0;
             ChannelCombo.ItemsSource = Enumerable.Range(0, 16);
             ChannelCombo.SelectedIndex = 0;
@@ -116,10 +116,10 @@ namespace SPWare.VirtualSoundCanvas
             RomSetCombo.SelectionChanged += OnRomSetChanged;
             RomSetCombo.SelectedIndex = Math.Clamp(_settings.Mt32RomSetIndex, 0, 1);
 
-            DefaultEngineCombo.ItemsSource = new[] { _mt32.Name, _sc55.Name, _cm32.Name };
+            DefaultEngineCombo.ItemsSource = EngineDisplayOrder.Select(i => EngineByIndex(i).Name).ToArray();   // 목록에는 CM-32L이 맨 위, 저장되는 엔진 번호는 그대로
             DefaultEngineCombo.SelectionChanged += (_, _) =>
             {
-                int i = Math.Max(DefaultEngineCombo.SelectedIndex, 0);
+                int i = EngineIndexAtRow(DefaultEngineCombo.SelectedIndex);
                 var previousEngine = _router.ActiveEngine;
                 var newEngine = EngineByIndex(i);
                 _router.ActiveEngine = newEngine;
@@ -337,7 +337,7 @@ namespace SPWare.VirtualSoundCanvas
             LanguageCombo.ItemsSource = new[] { "Auto (Windows language / 윈도 언어)", "한국어", "English" };
             LanguageCombo.SelectedIndex = _settings.Language switch { "ko" => 1, "en" => 2, _ => 0 };
 
-            DefaultEngineCombo.SelectedIndex = Math.Clamp(_settings.DefaultEngineIndex, 0, 2);
+            DefaultEngineCombo.SelectedIndex = RowOfEngineIndex(Math.Clamp(_settings.DefaultEngineIndex, 0, 2));
 
             SelectComboByName(MidiInCombo, _settings.MidiInDeviceName);
 
@@ -410,6 +410,15 @@ namespace SPWare.VirtualSoundCanvas
             int i = items.FindIndex(x => x == name);
             if (i >= 0) combo.SelectedIndex = i;
         }
+
+        /// <summary>엔진 목록(채널 배정의 "엔진", 기본 엔진)에 보이는 순서. 값은 저장되는 엔진 번호이고, CM-32L이 맨 위다.</summary>
+        private static readonly int[] EngineDisplayOrder = { 2, 0, 1 };
+
+        /// <summary>목록의 몇 번째 줄이 가리키는 엔진 번호(선택이 없으면 첫 줄).</summary>
+        private static int EngineIndexAtRow(int row) => EngineDisplayOrder[Math.Clamp(row, 0, EngineDisplayOrder.Length - 1)];
+
+        /// <summary>엔진 번호가 목록의 몇 번째 줄에 있는지.</summary>
+        private static int RowOfEngineIndex(int engineIndex) => Math.Max(Array.IndexOf(EngineDisplayOrder, engineIndex), 0);
 
         private ISynthEngine EngineByIndex(int index) => index switch
         {
@@ -729,7 +738,7 @@ namespace SPWare.VirtualSoundCanvas
         private void OnAssignChannel(object sender, RoutedEventArgs e)
         {
             if (ChannelCombo.SelectedItem is not int channel) return;
-            int engineIndex = Math.Max(EngineCombo.SelectedIndex, 0);
+            int engineIndex = EngineIndexAtRow(EngineCombo.SelectedIndex);
             var engine = EngineByIndex(engineIndex);
             _router.AssignChannel(channel, engine);
             _settings.SetChannelAssignment(channel, engineIndex);
@@ -774,7 +783,7 @@ namespace SPWare.VirtualSoundCanvas
                 int engineIndex = EngineIndexOf(kind);
                 if (engineIndex >= 0)
                 {
-                    DefaultEngineCombo.SelectedIndex = engineIndex;
+                    DefaultEngineCombo.SelectedIndex = RowOfEngineIndex(engineIndex);
                     // 보이는 기기도 그 종류에 맞춰 준다 (소리 경로와는 무관한 화면 전환).
                     // 단, 시작할 때 저장된 종류를 복원하는 첫 변경은 건너뛴다: 사용자가 마지막으로 보던 탭이 우선이다.
                     if (_skipTabSwitchOnce)
