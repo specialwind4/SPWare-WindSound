@@ -226,6 +226,45 @@
             </Setter>
         </Style>
 
+        <!-- 위 줄의 [설정] [도움말]: QuietButtonStyle과 같은 모양, 펼쳐져 있으면(눌림) 보라색 테두리 -->
+        <Style x:Key="QuietToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#303036"/>
+            <Setter Property="BorderBrush" Value="#46464E"/>
+            <Setter Property="Foreground" Value="#ECECF0"/>
+            <Setter Property="Padding" Value="14,3"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <Border x:Name="Hl" CornerRadius="6" Background="White" Opacity="0" IsHitTestVisible="False"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A3A55"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#6C63FF"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Hl" Property="Opacity" Value="0.07"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Hl" Property="Opacity" Value="0.14"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="EngineTab" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -419,11 +458,9 @@
             <!-- 제목 줄: 설정 / 도움말 (하나를 펼치면 다른 하나는 접힌다. 둘 다 접으면 기기 디자인만 보인다) -->
             <Grid Margin="4,0,0,12">
             <StackPanel Orientation="Horizontal">
-                <ToggleButton x:Name="BtnSettings" Content="설정" Style="{StaticResource SectionToggle}"
+                <ToggleButton x:Name="BtnSettings" Content="설정" Style="{StaticResource QuietToggleStyle}" Width="76"
                               IsChecked="{Binding IsExpanded, ElementName=SecAll, Mode=TwoWay}"/>
-                <TextBlock Text="/" Foreground="{StaticResource TextMuted}" FontSize="14" Margin="16,0,16,0"
-                           VerticalAlignment="Center"/>
-                <ToggleButton x:Name="BtnHelp" Content="도움말" Style="{StaticResource SectionToggle}"
+                <ToggleButton x:Name="BtnHelp" Content="도움말" Style="{StaticResource QuietToggleStyle}" Width="76" Margin="8,0,0,0"
                               IsChecked="{Binding IsExpanded, ElementName=SecHelp, Mode=TwoWay}"/>
             </StackPanel>
             <!-- 녹음: 지금 듣는 음악을 MIDI 파일 / MP3로 저장 (형식과 방식은 설정 > 녹음) -->
@@ -432,6 +469,7 @@
                            VerticalAlignment="Center" Margin="0,0,10,0" TextTrimming="CharacterEllipsis" MaxWidth="360"/>
                 <Button x:Name="RecordButton" Content="● 녹음" Style="{StaticResource QuietButtonStyle}" Width="76" Click="OnRecordToggle"
                         ToolTip="지금 듣는 음악을 MIDI 파일 / MP3로 저장합니다 (형식과 방식은 설정의 녹음에서 고릅니다)"/>
+                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" Width="76" Margin="8,0,0,0" Click="OnStart"/>
             </StackPanel>
             </Grid>
 
@@ -672,6 +710,13 @@
                 </Expander>
             </Border>
 
+            <!-- 시작 옵션 -->
+            <StackPanel Margin="2,0,0,12">
+                <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"/>
+                <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
+                          Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
+            </StackPanel>
+
             </StackPanel>
             </Expander>
 
@@ -714,14 +759,6 @@
                 <Run x:Name="UpdateText"/><Hyperlink x:Name="UpdateLink" Click="OnUpdateLinkClick" Foreground="#FFD27A"/>
             </TextBlock>
 
-            <Grid>
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <CheckBox x:Name="AutoStartCheck" Content="앱을 켜면 자동으로 시작" Foreground="#9A9AA6"/>
-                    <CheckBox x:Name="UpdateCheck" Content="새 버전 확인 (하루에 한 번 GitHub에 접속)" Foreground="#9A9AA6" Margin="0,6,0,0"
-                              Checked="OnUpdateCheckChanged" Unchecked="OnUpdateCheckChanged"/>
-                </StackPanel>
-                <Button Content="시작" Style="{StaticResource QuietButtonStyle}" Width="76" HorizontalAlignment="Right" Padding="14,3" Click="OnStart"/>
-            </Grid>
         </StackPanel>
     </ScrollViewer>
 </Window>
